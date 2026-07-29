@@ -1,0 +1,2316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0"/>
+<meta name="theme-color" content="#1a2b4a"/>
+<title>Field Visit Tracker · InsuranceDekho</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  /* Brand */
+  --navy:#1a2b4a; --navy2:#243557; --navy3:#1e3a6e;
+  --red:#e8192c; --red2:#c51424; --red-soft:rgba(232,25,44,.1);
+  --gold:#f5a623; --gold-soft:rgba(245,166,35,.12);
+
+  /* Surface */
+  --bg:#f0f4f8; --white:#ffffff;
+  --surf:#ffffff; --surf2:#f7f9fc; --surf3:#eef2f7;
+  --bdr:#e2e8f0; --bdr2:#cbd5e1;
+
+  /* Text */
+  --txt:#1a2b4a; --txt2:#4a5568; --txt3:#8494a7; --txt4:#b0bec5;
+
+  /* Status */
+  --green:#10b981; --green-s:rgba(16,185,129,.1);
+  --blue:#3b82f6; --blue-s:rgba(59,130,246,.1);
+  --amber:#f59e0b; --amber-s:rgba(245,158,11,.1);
+  --rose:#f43f5e; --rose-s:rgba(244,63,94,.1);
+  --purple:#8b5cf6; --purple-s:rgba(139,92,246,.1);
+  --cyan:#06b6d4; --cyan-s:rgba(6,182,212,.1);
+
+  /* Visit type colors */
+  --pm-c:#3b82f6; --pm-s:rgba(59,130,246,.12);
+  --tc-c:#10b981; --tc-s:rgba(16,185,129,.12);
+  --im-c:#8b5cf6; --im-s:rgba(139,92,246,.12);
+
+  /* Layout */
+  --font:'Inter',sans-serif;
+  --font2:'Manrope',sans-serif;
+  --r:8px; --r2:12px; --r3:16px;
+  --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.06);
+  --shadow2:0 4px 16px rgba(0,0,0,.1),0 2px 4px rgba(0,0,0,.06);
+  --shadow3:0 10px 40px rgba(0,0,0,.12);
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:14px;scroll-behavior:smooth;-webkit-tap-highlight-color:transparent}
+body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:100vh;overflow-x:hidden}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bdr2);border-radius:3px}
+
+/* SPLASH */
+#splash{position:fixed;inset:0;z-index:9999;background:var(--navy);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;transition:opacity .4s,visibility .4s}
+#splash.hide{opacity:0;pointer-events:none;visibility:hidden}
+.sp-logo{width:72px;height:72px;background:linear-gradient(135deg,var(--red),#ff4d6d);border-radius:20px;display:flex;align-items:center;justify-content:center;font-family:var(--font2);font-weight:800;font-size:28px;color:#fff;box-shadow:0 8px 32px rgba(232,25,44,.4)}
+.sp-title{font-family:var(--font2);font-weight:800;font-size:22px;color:#fff;letter-spacing:-.3px}
+.sp-sub{font-size:12px;color:rgba(255,255,255,.5)}
+.sp-bar{width:180px;height:3px;background:rgba(255,255,255,.15);border-radius:2px;overflow:hidden}
+.sp-bar-fill{height:100%;width:0;background:linear-gradient(90deg,var(--red),var(--gold));border-radius:2px;animation:load 1s ease forwards .3s}
+@keyframes load{to{width:100%}}
+.sp-spin{width:32px;height:32px;border:2.5px solid rgba(255,255,255,.2);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* LOGIN */
+#loginScreen{display:none;min-height:100vh;background:var(--navy);align-items:center;justify-content:center;padding:24px;flex-direction:column}
+#loginScreen.on{display:flex}
+.lc{background:var(--white);border-radius:var(--r3);padding:40px 36px;width:100%;max-width:400px;box-shadow:var(--shadow3)}
+.lc-header{margin-bottom:28px}
+.lc-logo-row{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+.lc-logo{width:44px;height:44px;background:linear-gradient(135deg,var(--red),#ff4d6d);border-radius:12px;display:flex;align-items:center;justify-content:center;font-family:var(--font2);font-weight:800;font-size:17px;color:#fff;flex-shrink:0}
+.lc-brand .b1{font-family:var(--font2);font-size:15px;font-weight:800;color:var(--navy)}
+.lc-brand .b2{font-size:11px;color:var(--txt3);margin-top:1px}
+.lc-title{font-family:var(--font2);font-size:24px;font-weight:800;color:var(--navy);line-height:1.2;margin-bottom:6px}
+.lc-desc{font-size:13px;color:var(--txt3);line-height:1.6}
+.lc-rules{background:var(--surf2);border:1px solid var(--bdr);border-radius:var(--r);padding:12px 14px;margin:16px 0;display:flex;flex-direction:column;gap:5px}
+.lc-rule{font-size:11px;color:var(--txt2);display:flex;gap:6px;align-items:flex-start;line-height:1.4}
+.lc-rule::before{content:'•';color:var(--red);font-weight:800;flex-shrink:0;margin-top:1px}
+.fl{font-size:11px;font-weight:600;color:var(--txt2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px}
+.fi{width:100%;background:var(--surf2);border:1.5px solid var(--bdr2);color:var(--txt);border-radius:var(--r);padding:11px 14px;font-size:14px;font-family:var(--font);outline:none;transition:all .18s}
+.fi:focus{border-color:var(--navy3);background:var(--white);box-shadow:0 0 0 3px rgba(26,43,74,.08)}
+.fi::placeholder{color:var(--txt4)}
+.btn-login{width:100%;padding:13px;background:var(--red);color:#fff;border:none;border-radius:var(--r);font-family:var(--font2);font-weight:700;font-size:14px;cursor:pointer;margin-top:16px;transition:all .2s;box-shadow:0 4px 12px rgba(232,25,44,.3)}
+.btn-login:hover{background:var(--red2);box-shadow:0 6px 16px rgba(232,25,44,.4);transform:translateY(-1px)}
+.login-err{background:var(--rose-s);border:1px solid rgba(244,63,94,.3);border-radius:var(--r);padding:10px 12px;color:var(--rose);font-size:12px;margin-top:12px;display:none}
+.login-err.on{display:block}
+
+/* APP SHELL */
+#app{display:none;flex-direction:column;min-height:100vh}
+#app.on{display:flex}
+
+/* SIDEBAR + LAYOUT */
+.app-layout{display:flex;flex:1;min-height:calc(100vh - 60px)}
+.sidebar{width:220px;background:var(--navy);flex-shrink:0;display:flex;flex-direction:column;position:sticky;top:60px;height:calc(100vh - 60px);overflow-y:auto}
+.sidebar-nav{padding:16px 10px;flex:1}
+.nav-section-label{font-size:9px;font-weight:700;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:.1em;padding:0 10px;margin:16px 0 6px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--r);cursor:pointer;transition:all .18s;color:rgba(255,255,255,.6);font-size:13px;font-weight:500;margin-bottom:2px;border:none;background:transparent;width:100%;text-align:left}
+.nav-item:hover{background:rgba(255,255,255,.08);color:#fff}
+.nav-item.active{background:linear-gradient(135deg,var(--red),#ff4d6d);color:#fff;box-shadow:0 4px 12px rgba(232,25,44,.3)}
+.nav-item .ni{font-size:16px;flex-shrink:0}
+.sidebar-bottom{padding:12px 10px;border-top:1px solid rgba(255,255,255,.08)}
+.user-card-sb{background:rgba(255,255,255,.07);border-radius:var(--r);padding:12px;display:flex;align-items:center;gap:10px}
+.user-ava{width:36px;height:36px;background:linear-gradient(135deg,var(--red),#ff4d6d);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:#fff;flex-shrink:0}
+.user-info-sb .un{font-size:12px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px}
+.user-info-sb .ur{font-size:10px;color:rgba(255,255,255,.45);margin-top:1px}
+.btn-logout-sb{margin-left:auto;background:transparent;border:none;color:rgba(255,255,255,.4);cursor:pointer;font-size:16px;padding:4px;border-radius:4px;transition:color .18s;flex-shrink:0}
+.btn-logout-sb:hover{color:var(--rose)}
+
+/* TOPBAR */
+.topbar{height:60px;background:var(--white);border-bottom:1px solid var(--bdr);display:flex;align-items:center;padding:0 20px;gap:14px;position:sticky;top:0;z-index:200;box-shadow:var(--shadow)}
+.topbar-logo{display:flex;align-items:center;gap:10px;width:200px;flex-shrink:0}
+.tb-logo{width:34px;height:34px;background:linear-gradient(135deg,var(--red),#ff4d6d);border-radius:9px;display:flex;align-items:center;justify-content:center;font-family:var(--font2);font-weight:800;font-size:14px;color:#fff}
+.tb-brand .b1{font-family:var(--font2);font-size:13px;font-weight:800;color:var(--navy)}
+.tb-brand .b2{font-size:9px;color:var(--txt3)}
+.tb-page-title{font-family:var(--font2);font-size:15px;font-weight:700;color:var(--navy);flex:1}
+.tb-date{font-size:11px;color:var(--txt3)}
+.tb-travel-badge{display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700}
+.tb-travel-badge.travel{background:var(--green-s);color:var(--green);border:1px solid rgba(16,185,129,.2)}
+.tb-travel-badge.notravel{background:var(--amber-s);color:var(--amber);border:1px solid rgba(245,158,11,.2)}
+.tb-dot{width:6px;height:6px;border-radius:50%;animation:blink 2s infinite}
+.tb-travel-badge.travel .tb-dot{background:var(--green)}
+.tb-travel-badge.notravel .tb-dot{background:var(--amber)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.tb-menu-btn{display:none;background:transparent;border:none;color:var(--txt2);cursor:pointer;font-size:20px;padding:4px}
+
+/* MAIN CONTENT */
+.main-content{flex:1;padding:20px;overflow-y:auto;min-width:0}
+
+/* VIEWS */
+.view{display:none}
+.view.active{display:block}
+
+/* CARDS */
+.card{background:var(--white);border-radius:var(--r2);box-shadow:var(--shadow);border:1px solid var(--bdr)}
+.card-header{padding:16px 20px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;justify-content:space-between;gap:12px}
+.card-title{font-family:var(--font2);font-size:14px;font-weight:700;color:var(--navy);display:flex;align-items:center;gap:8px}
+.card-body{padding:20px}
+
+/* KPI GRID */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:var(--white);border-radius:var(--r2);padding:16px 18px;border:1px solid var(--bdr);box-shadow:var(--shadow);position:relative;overflow:hidden;transition:transform .2s,box-shadow .2s}
+.kpi:hover{transform:translateY(-2px);box-shadow:var(--shadow2)}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:var(--r2) var(--r2) 0 0}
+.kpi.navy::before{background:var(--navy)}
+.kpi.red::before{background:var(--red)}
+.kpi.green::before{background:var(--green)}
+.kpi.amber::before{background:var(--amber)}
+.kpi.blue::before{background:var(--blue)}
+.kpi.purple::before{background:var(--purple)}
+.kpi.rose::before{background:var(--rose)}
+.kpi.cyan::before{background:var(--cyan)}
+.kpi-icon{position:absolute;top:14px;right:14px;font-size:22px;opacity:.12}
+.kpi-label{font-size:10px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em}
+.kpi-value{font-family:var(--font2);font-size:28px;font-weight:800;color:var(--navy);margin:6px 0 2px;line-height:1}
+.kpi-sub{font-size:11px;color:var(--txt3)}
+.kpi-sub.pos{color:var(--green)} .kpi-sub.neg{color:var(--rose)}
+
+/* CALENDAR */
+.cal-wrap{background:var(--white);border-radius:var(--r2);border:1px solid var(--bdr);box-shadow:var(--shadow);overflow:hidden;margin-bottom:20px}
+.cal-header{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--bdr);background:var(--navy)}
+.cal-title{font-family:var(--font2);font-size:15px;font-weight:800;color:#fff}
+.cal-legend{display:flex;gap:14px}
+.cal-leg-item{display:flex;align-items:center;gap:5px;font-size:10px;color:rgba(255,255,255,.7);font-weight:600}
+.cal-leg-dot{width:8px;height:8px;border-radius:50%}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr)}
+.cal-dow{text-align:center;padding:10px 4px;font-size:10px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.05em;background:var(--surf2);border-bottom:1px solid var(--bdr)}
+.cal-day{min-height:72px;padding:6px;border-right:1px solid var(--bdr);border-bottom:1px solid var(--bdr);position:relative;transition:background .15s;cursor:default}
+.cal-day:nth-child(7n){border-right:none}
+.cal-day:hover{background:var(--surf2)}
+.cal-day.other-month{background:var(--surf3)}
+.cal-day.today{background:rgba(26,43,74,.04)}
+.cal-day.today .day-num{background:var(--navy);color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center}
+.cal-day.has-visit{cursor:pointer}
+.day-num{font-size:11px;font-weight:700;color:var(--txt2);width:22px;height:22px;display:flex;align-items:center;justify-content:center;margin-bottom:3px}
+.day-dot{font-size:9px;font-weight:600;padding:1px 5px;border-radius:4px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.day-dot.pm{background:var(--pm-s);color:var(--pm-c)}
+.day-dot.tc{background:var(--tc-s);color:var(--tc-c)}
+.day-dot.im{background:var(--im-s);color:var(--im-c)}
+.day-dot.visited{opacity:.6;text-decoration:line-through}
+.day-dot.missed{background:var(--rose-s);color:var(--rose)}
+.sat-sun .day-num{color:var(--txt4)}
+.non-travel-day{background:repeating-linear-gradient(45deg,transparent,transparent 3px,rgba(0,0,0,.015) 3px,rgba(0,0,0,.015) 6px)}
+
+/* TIMELINE */
+.timeline{display:flex;flex-direction:column;gap:8px}
+.tl-item{display:flex;gap:12px;padding:12px 16px;background:var(--white);border:1px solid var(--bdr);border-radius:var(--r2);transition:all .18s;cursor:pointer}
+.tl-item:hover{box-shadow:var(--shadow2);border-color:var(--bdr2)}
+.tl-date{flex-shrink:0;text-align:center;width:44px}
+.tl-dd{font-family:var(--font2);font-size:20px;font-weight:800;color:var(--navy);line-height:1}
+.tl-dm{font-size:9px;color:var(--txt3);text-transform:uppercase;font-weight:600}
+.tl-divider{width:1px;background:var(--bdr);flex-shrink:0}
+.tl-body{flex:1;min-width:0}
+.tl-name{font-size:13px;font-weight:700;color:var(--navy)}
+.tl-meta{font-size:11px;color:var(--txt3);margin-top:2px;display:flex;gap:10px;flex-wrap:wrap}
+.tl-type-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700}
+.tl-type-badge.pm{background:var(--pm-s);color:var(--pm-c)}
+.tl-type-badge.tc{background:var(--tc-s);color:var(--tc-c)}
+.tl-type-badge.im{background:var(--im-s);color:var(--im-c)}
+.tl-status{display:inline-flex;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700;margin-left:auto;flex-shrink:0;align-self:flex-start}
+.tl-status.planned{background:var(--blue-s);color:var(--blue)}
+.tl-status.visited{background:var(--green-s);color:var(--green)}
+.tl-status.missed{background:var(--rose-s);color:var(--rose)}
+.tl-status.today{background:var(--amber-s);color:var(--amber)}
+
+/* FORMS */
+.form-tabs{display:flex;background:var(--white);border:1px solid var(--bdr);border-radius:var(--r2);padding:4px;gap:4px;margin-bottom:20px;box-shadow:var(--shadow)}
+.form-tab{flex:1;padding:10px;border:none;background:transparent;color:var(--txt3);border-radius:var(--r);font-family:var(--font2);font-size:12px;font-weight:700;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px}
+.form-tab:hover{color:var(--navy);background:var(--surf2)}
+.form-tab.active.pm{background:var(--pm-c);color:#fff;box-shadow:0 4px 12px rgba(59,130,246,.3)}
+.form-tab.active.tc{background:var(--tc-c);color:#fff;box-shadow:0 4px 12px rgba(16,185,129,.3)}
+.form-tab.active.im{background:var(--im-c);color:#fff;box-shadow:0 4px 12px rgba(139,92,246,.3)}
+
+.form-card{background:var(--white);border:1px solid var(--bdr);border-radius:var(--r2);margin-bottom:16px;box-shadow:var(--shadow);overflow:hidden}
+.form-section-header{padding:14px 18px;background:var(--surf2);border-bottom:1px solid var(--bdr);font-family:var(--font2);font-size:12px;font-weight:700;color:var(--navy);display:flex;align-items:center;gap:8px}
+.form-section-header .fsh-badge{background:var(--navy);color:#fff;font-size:9px;padding:2px 7px;border-radius:10px;font-weight:700}
+.form-body{padding:18px}
+.form-row{display:grid;gap:14px;margin-bottom:14px}
+.form-row.c2{grid-template-columns:1fr 1fr}
+.form-row.c3{grid-template-columns:1fr 1fr 1fr}
+.form-row.c1{grid-template-columns:1fr}
+.fg{display:flex;flex-direction:column;gap:5px}
+.fl2{font-size:11px;font-weight:600;color:var(--txt2);text-transform:uppercase;letter-spacing:.05em}
+.fl2 .req{color:var(--red);margin-left:2px}
+.fi2,.fsel,.ftxt{width:100%;background:var(--surf2);border:1.5px solid var(--bdr);color:var(--txt);border-radius:var(--r);padding:10px 12px;font-size:13px;font-family:var(--font);outline:none;transition:all .18s}
+.fi2:focus,.fsel:focus,.ftxt:focus{border-color:var(--navy3);background:var(--white);box-shadow:0 0 0 3px rgba(26,43,74,.07)}
+.fi2.autofill{background:var(--surf3);color:var(--txt3);cursor:default}
+.fsel{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7' viewBox='0 0 12 7'%3E%3Cpath fill='%238494a7' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:34px}
+.fsel option{background:var(--white);color:var(--txt)}
+.ftxt{resize:vertical;min-height:80px}
+
+/* Radio & Checkbox groups */
+.radio-group,.check-group{display:flex;flex-wrap:wrap;gap:8px}
+.radio-opt,.check-opt{display:flex;align-items:center;gap:6px;padding:7px 12px;background:var(--surf2);border:1.5px solid var(--bdr);border-radius:var(--r);cursor:pointer;font-size:12px;color:var(--txt2);transition:all .18s;font-weight:500;user-select:none}
+.radio-opt:hover,.check-opt:hover{border-color:var(--navy3);color:var(--navy)}
+.radio-opt.selected,.check-opt.selected{border-color:var(--navy3);background:rgba(26,43,74,.06);color:var(--navy)}
+.radio-opt input,.check-opt input{width:14px;height:14px;accent-color:var(--navy);cursor:pointer}
+
+/* Toggle */
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--bdr);gap:16px}
+.toggle-row:last-child{border-bottom:none;padding-bottom:0}
+.tl-lbl{font-size:13px;color:var(--txt2);font-weight:500}
+.tgl-wrap{position:relative;flex-shrink:0}
+.tgl-wrap input{opacity:0;width:0;height:0;position:absolute}
+.tgl-sw{display:flex;width:42px;height:22px;background:var(--bdr2);border-radius:11px;cursor:pointer;transition:background .2s;position:relative}
+.tgl-sw::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.tgl-wrap input:checked+.tgl-sw{background:var(--navy3)}
+.tgl-wrap input:checked+.tgl-sw::after{transform:translateX(20px)}
+
+/* Plan selector */
+.plan-selector{background:var(--surf2);border:1.5px solid var(--bdr);border-radius:var(--r);overflow:hidden}
+.plan-item{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--bdr);cursor:pointer;transition:background .18s}
+.plan-item:last-child{border-bottom:none}
+.plan-item:hover{background:rgba(26,43,74,.04)}
+.plan-item.selected-plan{background:rgba(26,43,74,.06);border-left:3px solid var(--navy)}
+.plan-item input[type=radio]{accent-color:var(--navy);width:15px;height:15px}
+.pi-date{font-family:var(--font2);font-size:13px;font-weight:700;color:var(--navy);width:70px;flex-shrink:0}
+.pi-city{font-size:13px;color:var(--txt2);flex:1;font-weight:500}
+.pi-status{font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px}
+.pi-status.done{background:var(--green-s);color:var(--green)}
+.pi-status.open{background:var(--blue-s);color:var(--blue)}
+.pi-status.missed{background:var(--rose-s);color:var(--rose)}
+
+/* Cond block */
+.cond-block{display:none;border-left:3px solid var(--navy3);padding-left:16px;margin-left:4px;margin-top:8px;flex-direction:column;gap:14px}
+.cond-block.on{display:flex}
+.cond-label{font-size:10px;font-weight:700;color:var(--navy3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+
+/* Submit btn */
+.btn-submit{width:100%;padding:14px;background:linear-gradient(135deg,var(--navy),var(--navy3));color:#fff;border:none;border-radius:var(--r);font-family:var(--font2);font-weight:800;font-size:15px;cursor:pointer;transition:all .2s;box-shadow:0 4px 16px rgba(26,43,74,.25);display:flex;align-items:center;justify-content:center;gap:8px}
+.btn-submit:hover{opacity:.9;transform:translateY(-1px);box-shadow:0 8px 24px rgba(26,43,74,.3)}
+.btn-submit:disabled{opacity:.4;cursor:not-allowed;transform:none}
+
+/* Compliance check */
+.compliance-check{background:rgba(16,185,129,.06);border:1.5px solid rgba(16,185,129,.2);border-radius:var(--r);padding:14px}
+.cc-row{display:flex;align-items:flex-start;gap:10px;font-size:13px;color:var(--txt2);cursor:pointer;line-height:1.5}
+.cc-row input[type=checkbox]{width:16px;height:16px;accent-color:var(--green);cursor:pointer;flex-shrink:0;margin-top:2px}
+
+/* SUCCESS */
+#successScreen{display:none;position:fixed;inset:0;z-index:5000;background:rgba(26,43,74,.7);backdrop-filter:blur(8px);align-items:center;justify-content:center;padding:20px}
+#successScreen.on{display:flex}
+.success-card{background:var(--white);border-radius:var(--r3);padding:40px 32px;max-width:420px;width:100%;text-align:center;box-shadow:var(--shadow3);display:flex;flex-direction:column;align-items:center;gap:16px}
+.sc-icon{width:68px;height:68px;background:var(--green-s);border:2px solid rgba(16,185,129,.3);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:30px}
+.sc-title{font-family:var(--font2);font-size:22px;font-weight:800;color:var(--navy)}
+.sc-sub{font-size:13px;color:var(--txt3);line-height:1.6}
+.sc-meta{background:var(--surf2);border:1px solid var(--bdr);border-radius:var(--r);padding:14px 16px;width:100%;text-align:left;display:flex;flex-direction:column;gap:8px}
+.sc-meta-row{display:flex;justify-content:space-between;font-size:12px}
+.sc-meta-row .mk{color:var(--txt3)}
+.sc-meta-row .mv{color:var(--navy);font-weight:600}
+.btn-sc-another{width:100%;padding:12px;background:transparent;border:1.5px solid var(--bdr2);color:var(--txt2);border-radius:var(--r);font-family:var(--font2);font-weight:700;font-size:13px;cursor:pointer;transition:all .2s}
+.btn-sc-another:hover{border-color:var(--navy);color:var(--navy)}
+.btn-sc-home{width:100%;padding:12px;background:var(--navy);color:#fff;border:none;border-radius:var(--r);font-family:var(--font2);font-weight:700;font-size:13px;cursor:pointer;transition:opacity .2s}
+.btn-sc-home:hover{opacity:.85}
+
+/* ADMIN DASHBOARD */
+.admin-table-wrap{overflow-x:auto;border-radius:var(--r2);border:1px solid var(--bdr);box-shadow:var(--shadow)}
+table.admin-table{width:100%;border-collapse:collapse;font-size:12px;background:var(--white)}
+.admin-table th{background:var(--navy);color:rgba(255,255,255,.85);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.05em;padding:10px 12px;text-align:left;white-space:nowrap;position:sticky;top:0}
+.admin-table td{padding:10px 12px;border-bottom:1px solid var(--bdr);color:var(--txt2);white-space:nowrap;vertical-align:middle}
+.admin-table tr:hover td{background:var(--surf2)}
+.admin-table tr:last-child td{border-bottom:none}
+.admin-table .td-name{color:var(--navy);font-weight:700;max-width:140px;overflow:hidden;text-overflow:ellipsis}
+.role-badge{display:inline-flex;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
+.role-badge.ZH{background:var(--navy);color:#fff}
+.role-badge.RH{background:var(--blue-s);color:var(--blue)}
+.role-badge.SH{background:var(--green-s);color:var(--green)}
+.role-badge.RM{background:var(--amber-s);color:var(--amber)}
+.prog-bar{width:80px;height:6px;background:var(--bdr);border-radius:3px;overflow:hidden;display:inline-block}
+.prog-fill{height:100%;background:var(--green);border-radius:3px;transition:width .5s}
+.prog-fill.mid{background:var(--amber)}
+.prog-fill.low{background:var(--rose)}
+
+/* Filters bar */
+.filters-bar{display:flex;flex-wrap:wrap;gap:8px;padding:14px 16px;border-bottom:1px solid var(--bdr);background:var(--surf2);border-radius:var(--r2) var(--r2) 0 0}
+.filter-sel{background:var(--white);border:1.5px solid var(--bdr);color:var(--txt2);border-radius:var(--r);padding:7px 28px 7px 10px;font-size:12px;font-family:var(--font);outline:none;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%238494a7' d='M1 1l4 4 4-4'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;transition:border-color .18s}
+.filter-sel:focus{border-color:var(--navy3)}
+.filter-count{font-size:12px;color:var(--txt3);align-self:center;margin-left:auto}
+
+/* ANALYTICS CHARTS */
+.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+.chart-card{background:var(--white);border:1px solid var(--bdr);border-radius:var(--r2);padding:18px;box-shadow:var(--shadow)}
+.chart-title{font-family:var(--font2);font-size:13px;font-weight:700;color:var(--navy);margin-bottom:14px}
+.bar-chart{display:flex;flex-direction:column;gap:10px}
+.bar-row{display:flex;align-items:center;gap:10px}
+.bar-label{font-size:11px;color:var(--txt2);width:90px;flex-shrink:0;text-align:right;font-weight:500}
+.bar-track{flex:1;height:10px;background:var(--surf3);border-radius:5px;overflow:hidden}
+.bar-fill{height:100%;border-radius:5px;transition:width .6s cubic-bezier(.4,0,.2,1)}
+.bar-val{font-size:11px;font-weight:700;color:var(--navy);width:30px;flex-shrink:0}
+.donut-wrap{position:relative;display:flex;align-items:center;justify-content:center;gap:24px}
+.donut-legend{display:flex;flex-direction:column;gap:8px}
+.dl-item{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--txt2);font-weight:500}
+.dl-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+.dl-num{font-weight:700;color:var(--navy)}
+
+/* NOTIFICATION BANNER */
+.notif-banner{border-radius:var(--r2);padding:12px 16px;display:flex;align-items:center;gap:12px;margin-bottom:16px;font-size:13px;border:1px solid}
+.notif-banner.today-visits{background:rgba(245,158,11,.07);border-color:rgba(245,158,11,.3);color:var(--amber)}
+.notif-banner.no-visits{background:var(--surf2);border-color:var(--bdr);color:var(--txt3)}
+.notif-banner.missed{background:var(--rose-s);border-color:rgba(244,63,94,.25);color:var(--rose)}
+
+/* GRID */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.mb-16{margin-bottom:16px} .mb-20{margin-bottom:20px}
+
+/* TOAST */
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--navy);border-radius:var(--r);padding:10px 20px;font-size:12px;color:#fff;z-index:9999;opacity:0;transition:all .3s;pointer-events:none;white-space:nowrap;box-shadow:var(--shadow2)}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.success{background:var(--green)}
+#toast.error{background:var(--rose)}
+#toast.warn{background:var(--amber)}
+
+/* MODAL */
+.modal-ov{display:none;position:fixed;inset:0;z-index:3000;background:rgba(26,43,74,.6);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:20px}
+.modal-ov.on{display:flex}
+.modal{background:var(--white);border-radius:var(--r3);padding:28px;max-width:500px;width:100%;box-shadow:var(--shadow3);max-height:90vh;overflow-y:auto}
+.modal-title{font-family:var(--font2);font-size:16px;font-weight:800;color:var(--navy);margin-bottom:16px;display:flex;align-items:center;gap:10px}
+.modal-close{margin-left:auto;background:transparent;border:none;cursor:pointer;color:var(--txt3);font-size:18px;padding:2px;transition:color .18s}
+.modal-close:hover{color:var(--rose)}
+.modal-detail-row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--bdr);font-size:13px}
+.modal-detail-row:last-child{border-bottom:none}
+.mdr-key{color:var(--txt3);font-weight:500}
+.mdr-val{color:var(--navy);font-weight:600;text-align:right;max-width:60%}
+
+/* MOBILE SIDEBAR OVERLAY */
+.sb-overlay{display:none;position:fixed;inset:0;z-index:150;background:rgba(0,0,0,.4)}
+.sb-overlay.on{display:block}
+
+/* RESPONSIVE */
+@media(max-width:900px){
+  .sidebar{display:none;position:fixed;top:60px;left:0;bottom:0;z-index:160;transform:translateX(-100%);transition:transform .3s}
+  .sidebar.open{display:flex;transform:translateX(0)}
+  .tb-menu-btn{display:flex;align-items:center;justify-content:center}
+  .chart-grid{grid-template-columns:1fr}
+  .grid-2{grid-template-columns:1fr}
+  .grid-3{grid-template-columns:1fr 1fr}
+  .form-row.c3{grid-template-columns:1fr 1fr}
+  .kpi-grid{grid-template-columns:repeat(2,1fr)}
+  .cal-grid{font-size:11px}
+  .cal-day{min-height:56px}
+}
+@media(max-width:480px){
+  .grid-3{grid-template-columns:1fr}
+  .form-row.c2,.form-row.c3{grid-template-columns:1fr}
+  .kpi-grid{grid-template-columns:1fr 1fr}
+  .main-content{padding:12px}
+  .form-tabs{flex-direction:column}
+  .cal-day{min-height:44px;padding:4px}
+  .day-dot{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- SPLASH -->
+<div id="splash">
+  <div class="sp-logo">ID</div>
+  <div class="sp-title">Field Visit Tracker</div>
+  <div class="sp-sub">InsuranceDekho · Motor & Health</div>
+  <div class="sp-bar"><div class="sp-bar-fill"></div></div>
+</div>
+
+<!-- LOGIN -->
+<div id="loginScreen">
+  <div class="lc">
+    <div class="lc-header">
+      <div class="lc-logo-row">
+        <div class="lc-logo">ID</div>
+        <div class="lc-brand"><div class="b1">InsuranceDekho</div><div class="b2">Field Visit Tracker · M&H</div></div>
+      </div>
+      <div class="lc-title">Plan. Visit.<br>Report. Track.</div>
+      <p class="lc-desc">August 2026 travel plans are live. Log in to view your schedule and submit visit reports.</p>
+    </div>
+    <div class="lc-rules">
+      <div class="lc-rule">Travel mandatory: Tuesdays, Wednesdays & Thursdays</div>
+      <div class="lc-rule">Local/base-location travel excluded from compliance</div>
+      <div class="lc-rule">ZHs and SH/RH/RGM must not travel to same city same day</div>
+      <div class="lc-rule">Google Form submission mandatory for every visit</div>
+    </div>
+    <div>
+      <div class="fl" style="margin-bottom:5px">Employee ID</div>
+      <input class="fi" type="text" id="empIdInput" placeholder="Enter your Employee ID" inputmode="numeric" autocomplete="off"/>
+    </div>
+    <div class="login-err" id="loginErr"></div>
+    <button class="btn-login" onclick="doLogin()">Access My Dashboard →</button>
+
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <button class="tb-menu-btn" onclick="toggleSidebar()">☰</button>
+    <div class="topbar-logo">
+      <div class="tb-logo">ID</div>
+      <div class="tb-brand"><div class="b1">InsuranceDekho</div><div class="b2">Field Visit Tracker</div></div>
+    </div>
+    <div class="tb-page-title" id="tbPageTitle">Dashboard</div>
+    <div class="tb-date" id="tbDate"></div>
+    <div class="tb-travel-badge" id="travelBadge">
+      <div class="tb-dot"></div>
+      <span id="travelBadgeText">—</span>
+    </div>
+  </div>
+
+  <div class="app-layout">
+    <!-- SIDEBAR OVERLAY (mobile) -->
+    <div class="sb-overlay" id="sbOverlay" onclick="toggleSidebar()"></div>
+
+    <!-- SIDEBAR -->
+    <div class="sidebar" id="sidebar">
+      <div class="sidebar-nav">
+        <div class="nav-section-label">Menu</div>
+        <button class="nav-item active" id="nav-home" onclick="navigate('home')"><span class="ni">🏠</span>Dashboard</button>
+        <button class="nav-item" id="nav-report" onclick="navigate('report')" style="background:linear-gradient(135deg,var(--red),#ff4d6d);color:#fff;box-shadow:0 4px 12px rgba(232,25,44,.3)"><span class="ni">📝</span>Submit Visit</button>
+        <button class="nav-item" id="nav-calendar" onclick="navigate('calendar')"><span class="ni">📅</span>My Travel Plan</button>
+        <button class="nav-item" id="nav-history" onclick="navigate('history')"><span class="ni">📋</span>My Reports</button>
+        <div class="nav-section-label" id="adminNavSection" style="display:none">Admin</div>
+        <button class="nav-item" id="nav-admin" onclick="navigate('admin')" style="display:none"><span class="ni">📊</span>Central Dashboard</button>
+      </div>
+      <div class="sidebar-bottom">
+        <div class="user-card-sb">
+          <div class="user-ava" id="userAva">—</div>
+          <div class="user-info-sb">
+            <div class="un" id="sbUserName">—</div>
+            <div class="ur" id="sbUserRole">—</div>
+          </div>
+          <button class="btn-logout-sb" onclick="doLogout()" title="Logout">⏻</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="main-content" id="mainContent">
+
+      <!-- HOME DASHBOARD -->
+      <div class="view active" id="view-home">
+        <!-- Notification banner -->
+        <div id="todayBanner" class="notif-banner today-visits mb-16" style="display:none">
+          <span style="font-size:20px">🔔</span>
+          <div><strong id="todayBannerTitle">Today's Visit:</strong> <span id="todayBannerText"></span></div>
+        </div>
+
+        <!-- CAPTURE VISIT — Primary Hero CTA -->
+        <div id="captureVisitHero" style="background:linear-gradient(135deg,var(--navy) 0%,#1e3a6e 60%,#2d4a8a 100%);border-radius:var(--r3);padding:24px 28px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:20px;box-shadow:0 8px 32px rgba(26,43,74,.25);position:relative;overflow:hidden">
+          <div style="position:absolute;right:-20px;top:-20px;width:160px;height:160px;background:rgba(255,255,255,.04);border-radius:50%"></div>
+          <div style="position:absolute;right:40px;bottom:-40px;width:100px;height:100px;background:rgba(232,25,44,.08);border-radius:50%"></div>
+          <div style="position:relative;z-index:1">
+            <div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px">Primary Action</div>
+            <div style="font-family:var(--font2);font-size:22px;font-weight:800;color:#fff;margin-bottom:4px">📍 Capture Visit</div>
+            <div style="font-size:12px;color:rgba(255,255,255,.6);line-height:1.5">Select your assigned travel plan and submit today's visit report</div>
+          </div>
+          <button onclick="navigate('report')" style="flex-shrink:0;background:var(--red);color:#fff;border:none;border-radius:var(--r2);padding:14px 28px;font-family:var(--font2);font-weight:800;font-size:15px;cursor:pointer;box-shadow:0 4px 16px rgba(232,25,44,.4);transition:all .2s;white-space:nowrap;position:relative;z-index:1" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 24px rgba(232,25,44,.5)'" onmouseout="this.style.transform='';this.style.boxShadow='0 4px 16px rgba(232,25,44,.4)'">
+            CAPTURE VISIT →
+          </button>
+        </div>
+
+        <!-- KPIs - 3 essential cards -->
+        <div class="kpi-grid mb-20" style="grid-template-columns:repeat(3,1fr)">
+          <div class="kpi navy"><div class="kpi-icon">📊</div><div class="kpi-label">Total Visits</div><div class="kpi-value" id="kPlan">—</div><div class="kpi-sub">Planned · August 2026</div></div>
+          <div class="kpi green"><div class="kpi-icon">✅</div><div class="kpi-label">Completed Visits</div><div class="kpi-value" id="kDone">0</div><div class="kpi-sub" id="kDonePct">0% of plan</div></div>
+          <div class="kpi amber"><div class="kpi-icon">⏳</div><div class="kpi-label">Pending Visits</div><div class="kpi-value" id="kPend">—</div><div class="kpi-sub">Remaining</div></div>
+        </div>
+        <!-- Hidden KPI values still computed for internal logic -->
+        <span id="kMiss" style="display:none">0</span>
+        <span id="kToday" style="display:none">—</span>
+        <span id="kTodayCity" style="display:none">—</span>
+        <span id="kWeek" style="display:none">—</span>
+        <span id="kPct" style="display:none">0%</span>
+        <span id="kCities" style="display:none">0</span>
+
+        <div class="grid-2 mb-20">
+          <!-- Mini Calendar -->
+          <div class="card">
+            <div class="card-header"><div class="card-title">📅 August 2026 Plan</div><button class="nav-item" style="padding:4px 10px;font-size:11px;background:var(--navy);color:#fff;border-radius:var(--r);cursor:pointer;border:none" onclick="navigate('calendar')">Full View</button></div>
+            <div class="card-body" style="padding:12px">
+              <div id="miniCalendar"></div>
+            </div>
+          </div>
+
+          <!-- Today & Upcoming -->
+          <div class="card">
+            <div class="card-header"><div class="card-title">🔔 Schedule Alerts</div></div>
+            <div class="card-body" style="padding:12px;max-height:320px;overflow-y:auto" id="alertsList"></div>
+          </div>
+        </div>
+
+        <!-- Weekly Timeline -->
+        <div class="card mb-20">
+          <div class="card-header"><div class="card-title">📆 Upcoming Visits (Next 10)</div></div>
+          <div class="card-body" id="upcomingTimeline"></div>
+        </div>
+      </div>
+
+      <!-- FULL CALENDAR VIEW -->
+      <div class="view" id="view-calendar">
+        <div class="cal-wrap mb-20">
+          <div class="cal-header">
+            <div class="cal-title">August 2026 · Travel Plan</div>
+            <div class="cal-legend">
+              <div class="cal-leg-item"><div class="cal-leg-dot" style="background:var(--pm-c)"></div>Partner Meet</div>
+              <div class="cal-leg-item"><div class="cal-leg-dot" style="background:var(--tc-c)"></div>Team Connect</div>
+              <div class="cal-leg-item"><div class="cal-leg-dot" style="background:var(--im-c)"></div>Insurer Meet</div>
+              <div class="cal-leg-item"><div class="cal-leg-dot" style="background:var(--rose)"></div>Missed</div>
+            </div>
+          </div>
+          <div class="cal-grid">
+            <div class="cal-dow">Sun</div><div class="cal-dow">Mon</div><div class="cal-dow">Tue</div>
+            <div class="cal-dow">Wed</div><div class="cal-dow">Thu</div><div class="cal-dow">Fri</div><div class="cal-dow">Sat</div>
+          </div>
+          <div class="cal-grid" id="fullCalBody"></div>
+        </div>
+
+        <!-- List view -->
+        <div class="card">
+          <div class="card-header"><div class="card-title">📋 All Planned Visits</div></div>
+          <div class="card-body" style="padding:12px">
+            <div class="timeline" id="allVisitsList"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUBMIT VISIT FORM -->
+      <div class="view" id="view-report">
+        <div class="form-tabs">
+          <button class="form-tab active pm" id="ftab-pm" onclick="switchFormTab('pm')">🤝 Partner Meet</button>
+          <button class="form-tab tc" id="ftab-tc" onclick="switchFormTab('tc')">👥 Team Connect</button>
+          <button class="form-tab im" id="ftab-im" onclick="switchFormTab('im')">🏢 Insurer Meet</button>
+        </div>
+
+        <!-- PARTNER MEET FORM -->
+        <div id="form-pm">
+          <!-- STEP 1: Select Plan — ALWAYS FIRST -->
+          <div class="form-card" style="border-left:4px solid var(--pm-c)">
+            <div class="form-section-header" style="background:var(--pm-s);color:var(--pm-c)">
+              📍 Step 1: Select Your Assigned Travel Plan <span class="fsh-badge" style="background:var(--pm-c)">Required First</span>
+            </div>
+            <div class="form-body">
+              <div class="plan-selector" id="pm_planSelector"><div style="padding:14px;color:var(--txt3);font-size:12px;text-align:center">No upcoming visits found</div></div>
+              <div id="pm_selectedPreview" style="display:none;margin-top:12px;background:var(--pm-s);border:1px solid rgba(59,130,246,.2);border-radius:var(--r);padding:12px 14px;display:flex;align-items:center;gap:14px">
+                <div style="font-size:22px">📍</div>
+                <div>
+                  <div style="font-size:14px;font-weight:700;color:var(--navy)" id="pm_selCity">—</div>
+                  <div style="font-size:11px;color:var(--txt3)" id="pm_selDate">—</div>
+                </div>
+                <div style="margin-left:auto">
+                  <input class="fi2" type="date" id="pm_date" style="width:140px"/>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- STEP 2: Visit Details (auto-filled) -->
+          <div class="form-card">
+            <div class="form-section-header">👤 Step 2: Visit Details <span class="fsh-badge">Auto-filled</span></div>
+            <div class="form-body">
+              <div class="form-row c3">
+                <div class="fg"><div class="fl2">Employee Name</div><input class="fi2 autofill" id="pm_name" readonly/></div>
+                <div class="fg"><div class="fl2">Designation</div><input class="fi2 autofill" id="pm_desig" readonly/></div>
+                <div class="fg"><div class="fl2">Employee Code</div><input class="fi2 autofill" id="pm_code" readonly/></div>
+              </div>
+              <div class="form-row c2">
+                <div class="fg"><div class="fl2">Zone</div><input class="fi2 autofill" id="pm_zone" readonly/></div>
+                <div class="fg"><div class="fl2">Visit City (from plan)</div><input class="fi2" id="pm_city" readonly/></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-card">
+            <div class="form-section-header">🤝 Partner Information</div>
+            <div class="form-body">
+              <div class="form-row c2">
+                <div class="fg"><div class="fl2">Partner GID <span class="req">*</span></div><input class="fi2" type="text" id="pm_gid" placeholder="Partner GID" inputmode="numeric"/></div>
+                <div class="fg"><div class="fl2">Partner Contact</div><input class="fi2" type="tel" id="pm_contact" placeholder="10-digit number" maxlength="10" inputmode="numeric"/></div>
+              </div>
+              <div class="fg mb-16"><div class="fl2">Partner Name <span class="req">*</span></div><input class="fi2" type="text" id="pm_pname" placeholder="Full name"/></div>
+
+              <div class="fg mb-16">
+                <div class="fl2">Existing or New Partner? <span class="req">*</span></div>
+                <div class="radio-group" id="pm_existNew">
+                  <label class="radio-opt"><input type="radio" name="pm_existNew" value="Existing"> Existing Partner</label>
+                  <label class="radio-opt"><input type="radio" name="pm_existNew" value="New"> New Partner</label>
+                </div>
+              </div>
+
+              <div class="fg mb-16">
+                <div class="fl2">Partner Potential Bucket <span class="req">*</span></div>
+                <select class="fsel" id="pm_bucket">
+                  <option value="">— Select —</option>
+                  <option>HPP (&gt;₹1L Potential)</option>
+                  <option>MPP (₹50K–₹1L)</option>
+                  <option>LPP (₹10K–₹50K)</option>
+                  <option>APP (₹0–₹10K)</option>
+                  <option>DPP (No Business)</option>
+                </select>
+              </div>
+
+              <div class="fg mb-16">
+                <div class="fl2">Current Partner Status <span class="req">*</span></div>
+                <div class="radio-group" id="pm_status">
+                  <label class="radio-opt"><input type="radio" name="pm_status" value="Active" onclick="togglePartnerStatus('Active')"> Active</label>
+                  <label class="radio-opt"><input type="radio" name="pm_status" value="Inactive" onclick="togglePartnerStatus('Inactive')"> Inactive</label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-card">
+            <div class="form-section-header">🎯 Visit Purpose & Insights</div>
+            <div class="form-body">
+              <div class="fg mb-16">
+                <div class="fl2">Purpose of Visit <span class="req">*</span></div>
+                <select class="fsel" id="pm_purpose" onchange="togglePurposeOther()">
+                  <option value="">— Select purpose —</option>
+                  <option>Recovering a De-growing High Potential Partner</option>
+                  <option>Increase Business from Existing Partner</option>
+                  <option>Activate Inactive Partner</option>
+                  <option>New Partner Onboarding</option>
+                  <option>Relationship Building</option>
+                  <option>Issue Resolution</option>
+                  <option>Cross Sell Expansion</option>
+                  <option>Renewal Business Discussion</option>
+                  <option>Other</option>
+                </select>
+              </div>
+              <div class="cond-block" id="cond_purposeOther">
+                <div class="fg"><div class="fl2">Specify Purpose</div><input class="fi2" id="pm_purposeOther" placeholder="Describe visit purpose"/></div>
+              </div>
+
+              <!-- Active Partner section -->
+              <div class="cond-block" id="cond_active">
+                <div class="cond-label">Active Partner</div>
+                <div class="fg mb-16">
+                  <div class="fl2">Key challenges limiting business growth? (Select all that apply)</div>
+                  <div class="check-group" id="pm_challenges">
+                    <label class="check-opt"><input type="checkbox" value="No Major Issues"> No Major Issues</label>
+                    <label class="check-opt"><input type="checkbox" value="Low Customer Demand"> Low Customer Demand</label>
+                    <label class="check-opt"><input type="checkbox" value="Pricing / Commission"> Pricing / Commission</label>
+                    <label class="check-opt"><input type="checkbox" value="Product Knowledge Gap"> Product Knowledge Gap</label>
+                    <label class="check-opt"><input type="checkbox" value="Partner Bandwidth"> Partner Bandwidth</label>
+                    <label class="check-opt"><input type="checkbox" value="App / Platform Issues"> App / Platform Issues</label>
+                    <label class="check-opt"><input type="checkbox" value="RM Dependency"> RM Dependency</label>
+                    <label class="check-opt"><input type="checkbox" value="Payout Issues"> Payout Issues</label>
+                    <label class="check-opt"><input type="checkbox" value="Claim Experience"> Claim Experience</label>
+                    <label class="check-opt"><input type="checkbox" value="Policy Issuance Delay"> Policy Issuance Delay</label>
+                    <label class="check-opt"><input type="checkbox" value="Competitor Offering Better Terms"> Competitor Offering Better Terms</label>
+                    <label class="check-opt" onclick="toggleChallengeOther()"><input type="checkbox" value="Other"> Other</label>
+                  </div>
+                  <div class="cond-block" id="cond_challengeOther" style="margin-top:8px">
+                    <input class="fi2" id="pm_challengeOther" placeholder="Specify other challenge"/>
+                  </div>
+                </div>
+                <div class="form-row c2">
+                  <div class="fg"><div class="fl2">Current Business Trend</div>
+                    <select class="fsel" id="pm_trend">
+                      <option value="">— Select —</option>
+                      <option>Growing</option><option>Stable</option><option>Declining</option>
+                    </select>
+                  </div>
+                  <div class="fg"><div class="fl2">Leader Confidence</div>
+                    <select class="fsel" id="pm_confidence">
+                      <option value="">— Select —</option>
+                      <option>Will Grow Immediately</option>
+                      <option>Needs Follow-up</option>
+                      <option>High Risk of Churn</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Inactive Partner section -->
+              <div class="cond-block" id="cond_inactive">
+                <div class="cond-label">Inactive Partner</div>
+                <div class="fg mb-16"><div class="fl2">Primary Reason for Inactivity</div>
+                  <select class="fsel" id="pm_inactiveReason">
+                    <option value="">— Select reason —</option>
+                    <option>Low Customer Demand</option>
+                    <option>Pricing Issues</option>
+                    <option>Onboarding Knowledge Gap</option>
+                    <option>Partner Availability</option>
+                    <option>Technical Issues</option>
+                    <option>RM Dependency</option>
+                    <option>Payout Issues</option>
+                    <option>Shifted to Competitor</option>
+                    <option>Business Closed</option>
+                    <option>Seasonal Business</option>
+                    <option>Other</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="fg mb-16">
+                <div class="fl2">Line of Business (LOB) <span class="req">*</span> <span style="font-size:10px;color:var(--txt3);font-weight:400;text-transform:none">(select all that apply)</span></div>
+                <div class="check-group" id="pm_lob_group">
+                  <label class="check-opt"><input type="checkbox" name="pm_lob" value="Two-Wheelers (Bikes / Scooters)"> Two-Wheelers</label>
+                  <label class="check-opt"><input type="checkbox" name="pm_lob" value="Private Cars"> Private Cars</label>
+                  <label class="check-opt"><input type="checkbox" name="pm_lob" value="Light Commercial Vehicles (LCV)"> LCV</label>
+                  <label class="check-opt"><input type="checkbox" name="pm_lob" value="Passenger Carrying Vehicles (PCV)"> PCV</label>
+                  <label class="check-opt"><input type="checkbox" name="pm_lob" value="Goods Carrying Vehicles (GCV)"> GCV</label>
+                  <label class="check-opt"><input type="checkbox" name="pm_lob" value="School / Institutional Buses"> School Buses</label>
+                  <label class="check-opt"><input type="checkbox" name="pm_lob" value="Health"> Health</label>
+                  <label class="check-opt"><input type="checkbox" name="pm_lob" value="Commercial"> Commercial</label>
+                  <label class="check-opt"><input type="checkbox" name="pm_lob" value="All Segments"> All Segments</label>
+                </div>
+              </div>
+
+              <div class="fg mb-16">
+                <div class="fl2">Support Required (select all that apply)</div>
+                <div class="check-group" id="pm_support">
+                  <label class="check-opt"><input type="checkbox" value="Better Pricing"> Better Pricing</label>
+                  <label class="check-opt"><input type="checkbox" value="Commission Revision"> Commission Revision</label>
+                  <label class="check-opt"><input type="checkbox" value="Product Training"> Product Training</label>
+                  <label class="check-opt"><input type="checkbox" value="Claims Support"> Claims Support</label>
+                  <label class="check-opt"><input type="checkbox" value="Payout Resolution"> Payout Resolution</label>
+                  <label class="check-opt"><input type="checkbox" value="Tech Support"> Tech Support</label>
+                  <label class="check-opt"><input type="checkbox" value="RM Support"> RM Support</label>
+                  <label class="check-opt"><input type="checkbox" value="Marketing Material"> Marketing Material</label>
+                  <label class="check-opt"><input type="checkbox" value="Local Event"> Local Event</label>
+                  <label class="check-opt"><input type="checkbox" value="Senior Leadership Intervention"> Senior Leadership Intervention</label>
+                </div>
+              </div>
+
+              <div class="fg mb-16"><div class="fl2">Overall Meeting Outcome <span class="req">*</span></div>
+                <select class="fsel" id="pm_outcome">
+                  <option value="">— Select —</option>
+                  <option>Very Positive</option><option>Positive</option><option>Neutral</option>
+                  <option>Negative</option><option>Critical</option>
+                </select>
+              </div>
+
+              <div class="fg mb-16"><div class="fl2">Partner Insights / Notes</div>
+                <textarea class="ftxt" id="pm_notes" placeholder="Key observations, next steps, action items…"></textarea>
+              </div>
+
+
+            </div>
+          </div>
+
+          <div class="form-card">
+            <div class="form-section-header">✅ Compliance</div>
+            <div class="form-body">
+              <div class="compliance-check">
+                <label class="cc-row"><input type="checkbox" id="pm_formCheck"/>I confirm I have submitted the mandatory Google Form for this visit.</label>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;margin-bottom:24px">
+            <button class="btn-submit" style="flex:2" onclick="submitForm('pm')">✓ Submit Visit Report →</button>
+            <button onclick="resetFormAndAddAnother('pm')" style="flex:1;padding:14px;background:transparent;border:2px solid var(--navy);color:var(--navy);border-radius:var(--r);font-family:var(--font2);font-weight:700;font-size:13px;cursor:pointer;transition:all .2s" onmouseover="this.style.background='var(--navy)';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='var(--navy)'">+ Add Another Visit</button>
+          </div>
+        </div>
+
+        <!-- TEAM CONNECT FORM -->
+        <div id="form-tc" style="display:none">
+          <!-- STEP 1: Select Plan -->
+          <div class="form-card" style="border-left:4px solid var(--tc-c)">
+            <div class="form-section-header" style="background:var(--tc-s);color:var(--tc-c)">
+              📍 Step 1: Select Your Assigned Travel Plan <span class="fsh-badge" style="background:var(--tc-c)">Required First</span>
+            </div>
+            <div class="form-body">
+              <div class="plan-selector" id="tc_planSelector"></div>
+              <div style="margin-top:10px"><input class="fi2" type="date" id="tc_date" style="max-width:180px"/></div>
+            </div>
+          </div>
+          <!-- STEP 2: Auto-filled -->
+          <div class="form-card">
+            <div class="form-section-header">👤 Step 2: Visit Details <span class="fsh-badge">Auto-filled</span></div>
+            <div class="form-body">
+              <div class="form-row c3">
+                <div class="fg"><div class="fl2">Name</div><input class="fi2 autofill" id="tc_name" readonly/></div>
+                <div class="fg"><div class="fl2">Designation</div><input class="fi2 autofill" id="tc_desig" readonly/></div>
+                <div class="fg"><div class="fl2">Employee Code</div><input class="fi2 autofill" id="tc_code" readonly/></div>
+              </div>
+              <div class="fg"><div class="fl2">Visit City</div><input class="fi2" id="tc_city" readonly/></div>
+            </div>
+          </div>
+          <div class="form-card">
+            <div class="form-section-header">🏢 Meeting Setup</div>
+            <div class="form-body">
+
+              <div class="fg mb-16">
+                <div class="fl2">Visit Mode <span class="req">*</span></div>
+                <div class="radio-group" id="tc_mode">
+                  <label class="radio-opt"><input type="radio" name="tc_mode" value="Offline" onclick="toggleTCMode('Offline')"> Offline</label>
+                  <label class="radio-opt"><input type="radio" name="tc_mode" value="Online" onclick="toggleTCMode('Online')"> Online</label>
+                </div>
+              </div>
+              <div class="cond-block" id="cond_tc_offline">
+                <div class="form-row c2">
+                  <div class="fg"><div class="fl2">Branch Name <span class="req">*</span></div><input class="fi2" id="tc_branch" placeholder="Branch name"/></div>
+                  <div class="fg"><div class="fl2">Branch City <span class="req">*</span></div><input class="fi2" id="tc_bcity" placeholder="City"/></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-card">
+            <div class="form-section-header">👥 Meeting Details</div>
+            <div class="form-body">
+              <div class="form-row c2">
+                <div class="fg"><div class="fl2">Meeting Type <span class="req">*</span></div>
+                  <select class="fsel" id="tc_meetType">
+                    <option value="">— Select —</option>
+                    <option>Branch Review</option><option>One-on-One Coaching</option>
+                    <option>Team Huddle</option><option>Joint Market Visit</option>
+                    <option>Performance Review</option><option>New Hire Connect</option>
+                  </select>
+                </div>
+                <div class="fg"><div class="fl2">Primary Objective <span class="req">*</span></div>
+                  <select class="fsel" id="tc_objective">
+                    <option value="">— Select —</option>
+                    <option>Productivity Improvement</option><option>Activation Review</option>
+                    <option>Pipeline Review</option><option>Capability Building</option>
+                    <option>Issue Resolution</option><option>Motivation</option><option>Target Alignment</option>
+                  </select>
+                </div>
+              </div>
+              <div class="fg mb-16"><div class="fl2">Team Size Present</div><input class="fi2" type="number" id="tc_size" placeholder="No. of members" min="1"/></div>
+              <div class="fg mb-16"><div class="fl2">Agenda / Key Discussion Points <span class="req">*</span></div>
+                <textarea class="ftxt" id="tc_agenda" placeholder="What was discussed…"></textarea>
+              </div>
+              <div class="fg mb-16"><div class="fl2">Action Items / Next Steps</div>
+                <textarea class="ftxt" id="tc_actions" placeholder="Commitments, follow-ups…"></textarea>
+              </div>
+              <div class="form-row c2">
+                <div class="fg"><div class="fl2">Overall Team Health <span class="req">*</span></div>
+                  <select class="fsel" id="tc_health">
+                    <option value="">— Select —</option>
+                    <option>Excellent</option><option>Good</option>
+                    <option>Average</option><option>Needs Immediate Attention</option>
+                  </select>
+                </div>
+                <div class="fg"><div class="fl2">Biggest Challenge Observed</div>
+                  <select class="fsel" id="tc_challenge" onchange="toggleTCChallengeOther()">
+                    <option value="">— Select —</option>
+                    <option>Low Productivity</option><option>Low Activation</option>
+                    <option>Hiring Gap</option><option>Capability Gap</option>
+                    <option>Attrition Risk</option><option>Process Compliance</option>
+                    <option>RM Discipline</option><option>Market Competition</option><option>Other</option>
+                  </select>
+                </div>
+              </div>
+              <div class="cond-block" id="cond_tc_challenge">
+                <input class="fi2" id="tc_challengeOther" placeholder="Specify challenge"/>
+              </div>
+
+            </div>
+          </div>
+          <div class="form-card">
+            <div class="form-section-header">✅ Compliance</div>
+            <div class="form-body">
+              <div class="compliance-check"><label class="cc-row"><input type="checkbox" id="tc_formCheck"/>I confirm I have submitted the mandatory Google Form for this visit.</label></div>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;margin-bottom:24px">
+            <button class="btn-submit" style="flex:2" onclick="submitForm('tc')">✓ Submit Team Connect Report →</button>
+            <button onclick="resetFormAndAddAnother('tc')" style="flex:1;padding:14px;background:transparent;border:2px solid var(--tc-c);color:var(--tc-c);border-radius:var(--r);font-family:var(--font2);font-weight:700;font-size:13px;cursor:pointer">+ Add Another</button>
+          </div>
+        </div>
+
+        <!-- INSURER MEET FORM -->
+        <div id="form-im" style="display:none">
+          <!-- STEP 1: Select Plan -->
+          <div class="form-card" style="border-left:4px solid var(--im-c)">
+            <div class="form-section-header" style="background:var(--im-s);color:var(--im-c)">
+              📍 Step 1: Select Your Assigned Travel Plan <span class="fsh-badge" style="background:var(--im-c)">Required First</span>
+            </div>
+            <div class="form-body">
+              <div class="plan-selector" id="im_planSelector"></div>
+              <div style="margin-top:10px"><input class="fi2" type="date" id="im_date" style="max-width:180px"/></div>
+            </div>
+          </div>
+          <!-- STEP 2: Auto-filled -->
+          <div class="form-card">
+            <div class="form-section-header">👤 Step 2: Visit Details <span class="fsh-badge">Auto-filled</span></div>
+            <div class="form-body">
+              <div class="form-row c3">
+                <div class="fg"><div class="fl2">Name</div><input class="fi2 autofill" id="im_name" readonly/></div>
+                <div class="fg"><div class="fl2">Designation</div><input class="fi2 autofill" id="im_desig" readonly/></div>
+                <div class="fg"><div class="fl2">Employee Code</div><input class="fi2 autofill" id="im_code" readonly/></div>
+              </div>
+              <div class="fg"><div class="fl2">Visit City</div><input class="fi2" id="im_city" readonly/></div>
+            </div>
+          </div>
+
+          <div class="form-card">
+            <div class="form-section-header">🏢 Insurer Details</div>
+            <div class="form-body">
+              <div class="fg mb-16"><div class="fl2">Insurer Name <span class="req">*</span></div>
+                <select class="fsel" id="im_insurer" onchange="toggleOtherInsurer()">
+                  <option value="">— Select insurer —</option>
+                  <option>Bajaj Allianz</option><option>HDFC ERGO</option><option>ICICI Lombard</option>
+                  <option>New India Assurance</option><option>Oriental Insurance</option><option>National Insurance</option>
+                  <option>United India Insurance</option><option>Reliance General</option><option>SBI General</option>
+                  <option>Tata AIG</option><option>Acko</option><option>Zuno</option><option>Go Digit</option>
+                  <option>Niva Bupa</option><option>Royal Sundaram</option><option>Future Generali</option><option>Other</option>
+                </select>
+              </div>
+              <div class="cond-block" id="cond_otherInsurer">
+                <input class="fi2" id="im_insurerOther" placeholder="Specify insurer name"/>
+              </div>
+
+              <div class="form-row c2">
+                <div class="fg"><div class="fl2">Purpose <span class="req">*</span></div>
+                  <select class="fsel" id="im_purpose">
+                    <option value="">— Select —</option>
+                    <option>Business Review</option><option>Pricing Discussion</option><option>Product Launch</option>
+                    <option>Claims Escalation</option><option>Service Issue</option><option>Relationship Meeting</option>
+                    <option>Partnership Expansion</option><option>Branch Introduction</option><option>Other</option>
+                  </select>
+                </div>
+                <div class="fg"><div class="fl2">Outcome <span class="req">*</span></div>
+                  <select class="fsel" id="im_outcome">
+                    <option value="">— Select —</option>
+                    <option>Action Closed</option><option>Follow-up Required</option>
+                    <option>Escalation Needed</option><option>Informational Meeting</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="fg mb-16"><div class="fl2">Key Discussion Areas (select all)</div>
+                <div class="check-group" id="im_discussion">
+                  <label class="check-opt"><input type="checkbox" value="Pricing"> Pricing</label>
+                  <label class="check-opt"><input type="checkbox" value="Product"> Product</label>
+                  <label class="check-opt"><input type="checkbox" value="Claims"> Claims</label>
+                  <label class="check-opt"><input type="checkbox" value="Service"> Service</label>
+                  <label class="check-opt"><input type="checkbox" value="Technology"> Technology</label>
+                  <label class="check-opt"><input type="checkbox" value="Growth Plan"> Growth Plan</label>
+                  <label class="check-opt"><input type="checkbox" value="New Opportunities"> New Opportunities</label>
+                </div>
+              </div>
+              <div class="fg mb-16"><div class="fl2">Key Outcomes / Commitments</div>
+                <textarea class="ftxt" id="im_outcomes" placeholder="What was agreed, commitments made…"></textarea>
+              </div>
+
+            </div>
+          </div>
+          <div class="form-card">
+            <div class="form-section-header">✅ Compliance</div>
+            <div class="form-body">
+              <div class="compliance-check"><label class="cc-row"><input type="checkbox" id="im_formCheck"/>I confirm I have submitted the mandatory Google Form for this visit.</label></div>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;margin-bottom:24px">
+            <button class="btn-submit" style="flex:2" onclick="submitForm('im')">✓ Submit Insurer Meet Report →</button>
+            <button onclick="resetFormAndAddAnother('im')" style="flex:1;padding:14px;background:transparent;border:2px solid var(--im-c);color:var(--im-c);border-radius:var(--r);font-family:var(--font2);font-weight:700;font-size:13px;cursor:pointer">+ Add Another</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- MY REPORTS -->
+      <div class="view" id="view-history">
+        <div class="card mb-20">
+          <div class="card-header"><div class="card-title">📋 My Submitted Visit Reports</div></div>
+          <div class="card-body" id="historyList"><div style="color:var(--txt3);font-size:13px;text-align:center;padding:20px">No reports submitted yet. Complete a visit to see it here.</div></div>
+        </div>
+        <div class="chart-grid">
+          <div class="chart-card">
+            <div class="chart-title">Visit Progress (Aug)</div>
+            <div class="bar-chart" id="myProgressChart"></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">Visit Type Distribution</div>
+            <div id="myTypeChart" style="display:flex;flex-direction:column;gap:8px"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ADMIN DASHBOARD -->
+      <div class="view" id="view-admin">
+        <!-- Response Storage Info Panel -->
+        <div style="background:linear-gradient(135deg,var(--navy),#1e3a6e);border-radius:var(--r2);padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px">Live Response Database</div>
+            <div style="font-family:var(--font2);font-size:14px;font-weight:700;color:#fff">Google Sheet · InsuranceDekho M&H Field Visits</div>
+            <div style="font-size:11px;color:rgba(255,255,255,.5);margin-top:3px">Sheets: Partner Meet Responses · Team Connect Responses · Insurer Meet Responses</div>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <div style="background:rgba(255,255,255,.08);border-radius:var(--r);padding:8px 14px;text-align:center">
+              <div style="font-size:10px;color:rgba(255,255,255,.4)">Total Responses</div>
+              <div style="font-family:var(--font2);font-size:18px;font-weight:800;color:#fff" id="ak_totalResponses">—</div>
+            </div>
+            <div style="background:rgba(255,255,255,.08);border-radius:var(--r);padding:8px 14px;text-align:center">
+              <div style="font-size:10px;color:rgba(255,255,255,.4)">Last Updated</div>
+              <div style="font-size:12px;font-weight:600;color:#fff" id="ak_lastUpdated">—</div>
+            </div>
+            <a href="https://docs.google.com/spreadsheets/d/1FOqhZIVN0dyqKLwea06t3EVDFKRD4LWXvt0_LFCRIqU" target="_blank" style="display:flex;align-items:center;gap:6px;background:var(--green);color:#fff;border-radius:var(--r);padding:8px 16px;font-family:var(--font2);font-weight:700;font-size:12px;text-decoration:none;white-space:nowrap">📂 Open Sheet →</a>
+          </div>
+        </div>
+
+        <div class="kpi-grid mb-20">
+          <div class="kpi navy"><div class="kpi-icon">👥</div><div class="kpi-label">Total Leaders</div><div class="kpi-value" id="ak_total">—</div><div class="kpi-sub">SH & Above</div></div>
+          <div class="kpi green"><div class="kpi-icon">✅</div><div class="kpi-label">Total Completed</div><div class="kpi-value" id="ak_done">—</div><div class="kpi-sub">Visits submitted</div></div>
+          <div class="kpi amber"><div class="kpi-icon">📅</div><div class="kpi-label">Total Planned</div><div class="kpi-value" id="ak_planned">—</div><div class="kpi-sub">Aug 2026</div></div>
+          <div class="kpi rose"><div class="kpi-icon">⚠️</div><div class="kpi-label">Total Missed</div><div class="kpi-value" id="ak_missed">0</div><div class="kpi-sub">Past due</div></div>
+          <div class="kpi blue"><div class="kpi-icon">📊</div><div class="kpi-label">Avg Completion</div><div class="kpi-value" id="ak_avg">—</div><div class="kpi-sub">Across leaders</div></div>
+          <div class="kpi purple"><div class="kpi-icon">🔥</div><div class="kpi-label">On Track</div><div class="kpi-value" id="ak_perfect">0</div><div class="kpi-sub">Leaders 100%</div></div>
+        </div>
+
+        <div class="card mb-20">
+          <div class="filters-bar">
+            <select class="filter-sel" id="af_zone" onchange="renderAdminTable()">
+              <option value="">All Zones</option>
+              <option>North</option><option>RON</option><option>West</option><option>E&C</option><option>South</option>
+            </select>
+            <select class="filter-sel" id="af_role" onchange="renderAdminTable()">
+              <option value="">All Roles</option>
+              <option>ZH</option><option>RH</option><option>SH</option><option>RM</option>
+            </select>
+            <div class="filter-count" id="af_count">Showing — leaders</div>
+          </div>
+          <div class="admin-table-wrap"><table class="admin-table">
+            <thead><tr>
+              <th>#</th><th>Name</th><th>Role</th><th>Zone</th><th>Region</th>
+              <th>Planned</th><th>Completed</th><th>Missed</th><th>Pending</th><th>Progress</th>
+            </tr></thead>
+            <tbody id="adminTableBody"></tbody>
+          </table></div>
+        </div>
+
+        <div class="chart-grid">
+          <div class="chart-card">
+            <div class="chart-title">Completion by Zone</div>
+            <div class="bar-chart" id="zoneChart"></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">Role-wise Progress</div>
+            <div class="bar-chart" id="roleChart"></div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- end main-content -->
+  </div><!-- end app-layout -->
+</div><!-- end app -->
+
+<!-- SUCCESS MODAL -->
+<div id="successScreen">
+  <div class="success-card">
+    <div class="sc-icon">✅</div>
+    <div class="sc-title">Visit Logged!</div>
+    <p class="sc-sub">Your visit report has been recorded. Keep up the excellent fieldwork!</p>
+    <div class="sc-meta" id="successMeta"></div>
+    <button class="btn-sc-another" onclick="submitAnother()">Log Another Visit</button>
+    <button class="btn-sc-home" onclick="goHome()">Back to Dashboard</button>
+  </div>
+</div>
+
+<!-- VISIT DETAIL MODAL -->
+<div class="modal-ov" id="visitModal">
+  <div class="modal">
+    <div class="modal-title">
+      <span id="modalIcon">📍</span>
+      <span id="modalTitle">Visit Details</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<!-- EDIT SUBMISSION MODAL -->
+<div class="modal-ov" id="editModal">
+  <div class="modal">
+    <div class="modal-title">
+      <span>✏️</span>
+      <span id="editModalTitle">Edit Submission</span>
+      <button class="modal-close" onclick="closeEditModal()">✕</button>
+    </div>
+    <div id="editModalBody"></div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+// —————————————————————————————————————————————
+// MASTER DATA — August 2026 Travel Plans
+// —————————————————————————————————————————————
+const LEADERS = [
+  // — ZHs ————————————————————————————————————
+  {id:"10055070",name:"Anil Kumar",role:"ZH",desig:"Zonal Head (Sr. Associate Director)",zone:"North",region:"North",base:"Haryana",plan:12},
+  {id:"10055521",name:"Paras Ram Nayak",role:"ZH",desig:"Zonal Head (Sr. Associate Director)",zone:"RON",region:"RON",base:"Haryana",plan:9},
+  {id:"1111",name:"Ashish Shetty",role:"ZH",desig:"Zonal Head (Sr. Associate Director)",zone:"E&C",region:"E&C",base:"Assam",plan:13},
+  {id:"10030566",name:"Bhagyaraj V",role:"ZH",desig:"Zonal Head (Director)",zone:"South",region:"South",base:"Karnataka",plan:12},
+  {id:"90004894",name:"Virendra A Ghuge",role:"ZH",desig:"Zonal Head (Sr. Associate Director)",zone:"West",region:"West",base:"Maharashtra",plan:13},
+  // — AVPs / RHs ——————————————————————————————
+  {id:"10030043",name:"Tushar Banerjee",role:"AVP",desig:"Assistant Vice - President",zone:"E&C",region:"East",base:"Haryana",plan:10},
+  {id:"10065630",name:"Tanuj Jain",role:"AVP",desig:"Assistant Vice President",zone:"North",region:"NCR",base:"Haryana",plan:8},
+  {id:"10055521",name:"Paras Ram Nayak",role:"ZH",desig:"Zonal Head",zone:"RON",region:"RON",base:"Haryana",plan:9},
+  {id:"10055483",name:"Puneet",role:"RH",desig:"Regional Head",zone:"North",region:"UP1",base:"Haryana",plan:10},
+  {id:"90005399",name:"Sundeep Bhati",role:"RH",desig:"Regional Head",zone:"North",region:"Haryana",base:"Haryana",plan:16},
+  {id:"10057598",name:"Dara Singh",role:"RM",desig:"Regional Manager",zone:"RON",region:"Rajasthan 2",base:"Rajasthan",plan:16},
+  {id:"10058125",name:"Amit Kumar",role:"SH",desig:"State Head",zone:"North",region:"NCR",base:"Uttar Pradesh",plan:16},
+  {id:"10052559",name:"Ashish Srivastava",role:"RM",desig:"Regional Manager",zone:"North",region:"NCR",base:"Delhi",plan:10},
+  {id:"10055546",name:"Jitender Kumar",role:"SH",desig:"State Head",zone:"RON",region:"Himachal Pradesh",base:"Himachal Pradesh",plan:7},
+  {id:"10055785",name:"Vikas Kumar",role:"RM",desig:"Regional Manager",zone:"RON",region:"Rajasthan 1",base:"Rajasthan",plan:19},
+  {id:"10062669",name:"Bimal Kumar",role:"SH",desig:"State Head",zone:"RON",region:"Punjab",base:"Punjab",plan:15},
+  {id:"10064310",name:"Nasib Singh",role:"RM",desig:"Regional Manager",zone:"RON",region:"Punjab",base:"Punjab",plan:10},
+  {id:"10066102",name:"Rahul Kumar Gupta",role:"SH",desig:"State Head",zone:"North",region:"UP1",base:"Uttar Pradesh",plan:8},
+  {id:"10066640",name:"Vikram Thakur",role:"RH",desig:"Regional Head",zone:"RON",region:"J&K",base:"Jammu and Kashmir",plan:13},
+  {id:"10070185",name:"Vishal",role:"SH",desig:"State Head",zone:"E&C",region:"Jharkhand",base:"Bihar",plan:13},
+  {id:"10070839",name:"Uttam Kumar Das",role:"SH",desig:"State Head",zone:"E&C",region:"Orissa",base:"Odisha",plan:13},
+  {id:"90000486",name:"Vinothbabu Nagarajan",role:"RM",desig:"Regional Manager",zone:"South",region:"Tamil Nadu",base:"Tamil Nadu",plan:8},
+  {id:"90001017",name:"Rohan Natwarlal Oza",role:"SH",desig:"State Head",zone:"West",region:"Mumbai",base:"Maharashtra",plan:12},
+  {id:"90001034",name:"Bhavesh Bharucha",role:"RM",desig:"Regional Manager",zone:"West",region:"Gujarat",base:"Gujarat",plan:10},
+  {id:"90001130",name:"Charles Victor",role:"SH",desig:"State Head",zone:"West",region:"Gujarat",base:"Gujarat",plan:12},
+  {id:"90004836",name:"Jitendra Singh",role:"RM",desig:"Regional Manager",zone:"E&C",region:"North East",base:"Haryana",plan:9},
+  {id:"90004987",name:"Prathamsinh R Ambla",role:"RM",desig:"Regional Manager",zone:"West",region:"Gujarat",base:"Gujarat",plan:10},
+  {id:"90005399",name:"Sundeep Bhati",role:"RH",desig:"Regional Head",zone:"North",region:"Haryana",base:"Haryana",plan:16},
+  {id:"90005884",name:"Shailendra Balkrishna Mahulkar",role:"SH",desig:"State Head",zone:"West",region:"Pune",base:"Maharashtra",plan:13},
+  {id:"90006676",name:"Prince Sharma",role:"SH",desig:"State Head",zone:"E&C",region:"MP/CG",base:"Madhya Pradesh",plan:12},
+  {id:"90007141",name:"Kadapa Venkat Sainath",role:"SH",desig:"State Head",zone:"South",region:"Telangana",base:"Telangana",plan:10},
+  {id:"90007355",name:"Manish Sharma",role:"SH",desig:"State Head",zone:"North",region:"North",base:"Delhi",plan:8},
+  {id:"90007371",name:"Vijith V L",role:"RH",desig:"Regional Head",zone:"South",region:"South",base:"Kerala",plan:7},
+  {id:"1112",name:"Pruthiraj Pradhan",role:"SH",desig:"State Head",zone:"E&C",region:"Orissa",base:"Odisha",plan:9},
+  {id:"1113",name:"Jintu Medhi",role:"SH",desig:"State Head",zone:"E&C",region:"Guwahati",base:"Assam",plan:11}
+];
+
+const TRAVEL_PLANS = {
+  "10055070":{"4-Aug":"Lucknow","5-Aug":"Lucknow","6-Aug":"Lucknow","11-Aug":"Varanasi","12-Aug":"Robertganj","13-Aug":"Ballia","18-Aug":"Haridwar","19-Aug":"Dehradun","20-Aug":"Dehradun","25-Aug":"Agra","26-Aug":"Mainpuri","27-Aug":"Mainpuri"},
+  "10055521":{"12-Aug":"Jammu","13-Aug":"Kathua","14-Aug":"Udhampur","18-Aug":"Jodhpur","19-Aug":"Pali","20-Aug":"Jodhpur","25-Aug":"Jaipur","26-Aug":"Sikar","27-Aug":"Jaipur"},
+  "1111":{"4-Aug":"Nagaon","5-Aug":"Nalbari","6-Aug":"Guwahati","11-Aug":"Patna","12-Aug":"Gaya","13-Aug":"Chapra","14-Aug":"Patna","18-Aug":"Bhubaneswar","19-Aug":"Baripada","20-Aug":"Balasore","25-Aug":"Siliguri","26-Aug":"Asansol","27-Aug":"Malda"},
+  "10030566":{"4-Aug":"Mangalore","5-Aug":"Udupi","6-Aug":"Tumkur","11-Aug":"Madurai","12-Aug":"Tirunelveli","13-Aug":"Virudhunagar","18-Aug":"Hyderabad","19-Aug":"Karimnagar","20-Aug":"Warangal","25-Aug":"Tirupati","26-Aug":"Chittoor","27-Aug":"Mandya"},
+  "90004894":{"4-Aug":"Pune","5-Aug":"Ahmednagar","6-Aug":"Sangamner","7-Aug":"Shrirampur","11-Aug":"Aurangabad","12-Aug":"Parbhani","13-Aug":"Nanded","18-Aug":"Kolhapur","19-Aug":"Sangli","20-Aug":"Satara","25-Aug":"Nashik","26-Aug":"Dhule","27-Aug":"Malegaon"},
+  "10030043":{"5-Aug":"Patna","6-Aug":"Muzaffarpur","7-Aug":"Darbhanga","12-Aug":"Ranchi","13-Aug":"Jamshedpur","14-Aug":"Dhanbad","19-Aug":"Kolkata","20-Aug":"Howrah","21-Aug":"Siliguri","26-Aug":"Bhubaneswar","27-Aug":"Cuttack"},
+  "10055483":{"4-Aug":"Patna","5-Aug":"Hajipur","6-Aug":"Sitamarhi","11-Aug":"Motihari","12-Aug":"Bettiah","13-Aug":"Gopalganj","14-Aug":"Siwan","15-Aug":"Chapra","18-Aug":"Saharsa","19-Aug":"Kishanganj","20-Aug":"Purnia","21-Aug":"Darbhanga","25-Aug":"Begusarai","26-Aug":"Munger","27-Aug":"Khagaria"},
+  "10057598":{"4-Aug":"Gorakhpur","5-Aug":"Gorakhpur","6-Aug":"Basti","7-Aug":"Ayodhya","8-Aug":"Ayodhya","18-Aug":"Moradabad","19-Aug":"Bareilly","20-Aug":"Bareilly","21-Aug":"Haldwani","22-Aug":"Haldwani"},
+  "10058125":{"3-Aug":"Noida","4-Aug":"Faridabad","5-Aug":"Gurgaon","8-Aug":"Gurgaon","11-Aug":"Faridabad","12-Aug":"Noida","13-Aug":"Faridabad","18-Aug":"Gurgaon","19-Aug":"Noida","21-Aug":"Faridabad","22-Aug":"Gurgaon","25-Aug":"Noida","27-Aug":"Noida","28-Aug":"Faridabad","29-Aug":"Gurgaon","31-Aug":"Gurgaon"},
+  "10052559":{"1-Aug":"Faridabad","3-Aug":"Faridabad","6-Aug":"Faridabad","10-Aug":"Faridabad","14-Aug":"Faridabad","17-Aug":"Faridabad","19-Aug":"Faridabad","22-Aug":"Faridabad","24-Aug":"Faridabad","29-Aug":"Faridabad"},
+  "10055546":{"4-Aug":"Mandi","5-Aug":"Kangra","6-Aug":"Kangra","7-Aug":"Kangra","8-Aug":"Kangra","11-Aug":"Shimla","13-Aug":"Solan"},
+  "10055785":{"3-Aug":"Nasirabad","5-Aug":"Kishangarh","6-Aug":"Beawar","7-Aug":"Bhilwara","8-Aug":"Bhilwara","10-Aug":"Thanwala","11-Aug":"Kekri","12-Aug":"Beesangaon","13-Aug":"Pushkar","14-Aug":"Ajmer","18-Aug":"Sikar","19-Aug":"Laxmangarh","20-Aug":"Fatehpur","24-Aug":"Ajmer","25-Aug":"Pushkar","26-Aug":"Ajmer","27-Aug":"Beawar","28-Aug":"Kishangarh","29-Aug":"Nasirabad"},
+  "10062669":{"4-Aug":"Khanna","5-Aug":"Amritsar","6-Aug":"Gurdaspur","7-Aug":"Pathankot","11-Aug":"Hoshiarpur","12-Aug":"Jalandhar","13-Aug":"Jalandhar","14-Aug":"Phagwara","18-Aug":"Malerkotla","19-Aug":"Mullanpur","20-Aug":"Ferozpur","21-Aug":"Ferozpur","25-Aug":"Moga","26-Aug":"Patiala","27-Aug":"Nabha"},
+  "10064310":{"4-Aug":"Ajmer","5-Aug":"Kishangarh","6-Aug":"Beawar","7-Aug":"Bhilwara","8-Aug":"Bhilwara","9-Aug":"Ajmer","10-Aug":"Jaipur","11-Aug":"Bhagru","12-Aug":"Chakshu","13-Aug":"Jaipur","18-Aug":"Sikar","19-Aug":"Laxmangarh","20-Aug":"Fatehpur","25-Aug":"Hanumangarh","26-Aug":"Sangaria","27-Aug":"Suratgarh"},
+  "10066102":{"4-Aug":"Barabanki","5-Aug":"Amethi","6-Aug":"Raebareli","7-Aug":"Gonda","8-Aug":"Faizabad","11-Aug":"Kanpur","12-Aug":"Kanpur","13-Aug":"Unnao"},
+  "10066640":{"1-Aug":"Jammu","4-Aug":"Udhampur","5-Aug":"Udhampur","6-Aug":"Ramban","11-Aug":"Panchkula","12-Aug":"Kharar","13-Aug":"Mohali","18-Aug":"Kalka","19-Aug":"Kalka","20-Aug":"Kalka","25-Aug":"Mandi","26-Aug":"Kullu","27-Aug":"Manali"},
+  "10070185":{"4-Aug":"Ramgarh","5-Aug":"Khunti","6-Aug":"Gola","11-Aug":"Koderma","12-Aug":"Barhi","13-Aug":"Hazaribagh","14-Aug":"Bagodar","18-Aug":"Bokaro","19-Aug":"Bokaro","20-Aug":"Fusro","25-Aug":"Dhanbad","26-Aug":"Dhanbad","27-Aug":"Dhanbad"},
+  "10070839":{"4-Aug":"Balasore","5-Aug":"Balasore","6-Aug":"Bhadrakh","7-Aug":"Bhadrakh","8-Aug":"Soro","10-Aug":"Koraput","11-Aug":"Koraput","12-Aug":"Koraput","17-Aug":"Kendujhar","18-Aug":"Kendujhar","20-Aug":"Puri","21-Aug":"Puri","22-Aug":"Puri"},
+  "90000486":{"4-Aug":"Dharmapuri","6-Aug":"Erode","11-Aug":"Villupuram","12-Aug":"Pondicherry","18-Aug":"Madurai","19-Aug":"Madurai","24-Aug":"Vellore","25-Aug":"Vellore"},
+  "90001017":{"4-Aug":"Bhiwandi","5-Aug":"Kalyan","6-Aug":"Ulhasnagar","11-Aug":"Airoli","12-Aug":"Navi Mumbai","13-Aug":"Vashi","18-Aug":"Palghar","19-Aug":"Nallasopara","20-Aug":"Vasai","25-Aug":"Pen","26-Aug":"Karjat","27-Aug":"Ambernath"},
+  "90001034":{"4-Aug":"Bhuj","5-Aug":"Bhuj","6-Aug":"Bhuj","11-Aug":"Bhavnagar","12-Aug":"Bhavnagar","13-Aug":"Bhavnagar","18-Aug":"Jamnagar","19-Aug":"Jamnagar","20-Aug":"Jamnagar","25-Aug":"Palanpur","26-Aug":"Mehsana","27-Aug":"Mehsana"},
+  "90001130":{"4-Aug":"Bhuj","5-Aug":"Bhuj","6-Aug":"Bhuj","11-Aug":"Bhavnagar","12-Aug":"Bhavnagar","13-Aug":"Bhavnagar","18-Aug":"Jamnagar","19-Aug":"Jamnagar","20-Aug":"Jamnagar","25-Aug":"Palanpur","26-Aug":"Mehsana","27-Aug":"Mehsana"},
+  "90004836":{"11-Aug":"Cuttack","12-Aug":"Khorda","13-Aug":"Jajpur","18-Aug":"Cuttack","19-Aug":"Baripada","20-Aug":"Balasore","25-Aug":"Jeypore","26-Aug":"Jeypore","27-Aug":"Bhawanipatna"},
+  "90004987":{"4-Aug":"Surat","5-Aug":"Surat","6-Aug":"Bharuch","11-Aug":"Vadodara","12-Aug":"Vadodara","13-Aug":"Anand","18-Aug":"Rajkot","19-Aug":"Rajkot","20-Aug":"Morbi","25-Aug":"Junagadh","26-Aug":"Junagadh"},
+  "90005399":{"3-Aug":"Delhi","4-Aug":"Ghaziabad","5-Aug":"Karnal","6-Aug":"Kaithal","7-Aug":"Jind","10-Aug":"Gurgaon","12-Aug":"Delhi","13-Aug":"Ghaziabad","17-Aug":"Gurgaon","19-Aug":"Narnaul","20-Aug":"Rewari","21-Aug":"Rohtak","24-Aug":"Delhi","26-Aug":"Ghaziabad","28-Aug":"Noida","31-Aug":"Gurgaon"},
+  "90005884":{"4-Aug":"Nasik","5-Aug":"Dhule","6-Aug":"Jalgaon","7-Aug":"Malegaon","11-Aug":"Kolhapur","12-Aug":"Sangli","13-Aug":"Satara","18-Aug":"Aurangabad","19-Aug":"Latur","20-Aug":"Parbhani","25-Aug":"Ahmednagar","26-Aug":"Shrirampur","27-Aug":"Sangamner"},
+  "90006676":{"6-Aug":"Ratlam","12-Aug":"Jabalpur","13-Aug":"Jabalpur","14-Aug":"Jabalpur","15-Aug":"Satna","19-Aug":"Gwalior","20-Aug":"Gwalior","21-Aug":"Gwalior","25-Aug":"Bhopal","26-Aug":"Bhopal","27-Aug":"Bhopal","31-Aug":"Dhar"},
+  "90007141":{"3-Aug":"Warangal","4-Aug":"Bhupalapally","10-Aug":"Visakhapatnam","11-Aug":"Rajahmundry","12-Aug":"Kakinada","13-Aug":"Vijayawada","19-Aug":"Karimnagar","20-Aug":"Warangal","25-Aug":"Tirupati","26-Aug":"Chittoor"},
+  "90007355":{"5-Aug":"Gurgaon","6-Aug":"Faridabad","12-Aug":"Delhi","13-Aug":"Noida","19-Aug":"Gurgaon","20-Aug":"Rohtak","25-Aug":"Sonipat","26-Aug":"Panipat"},
+  "90007371":{"3-Aug":"Palakkad","4-Aug":"Thrissur","5-Aug":"Kochi","12-Aug":"Kollam","13-Aug":"Kottayam","14-Aug":"Pathanamthitta"},
+  "1112":{"11-Aug":"Cuttack","12-Aug":"Khorda","13-Aug":"Jajpur","18-Aug":"Cuttack","19-Aug":"Baripada","20-Aug":"Balasore","25-Aug":"Jeypore","26-Aug":"Jeypore","27-Aug":"Bhawanipatna"},
+  "1113":{"1-Aug":"Rangia","4-Aug":"Bongaigaon","5-Aug":"Dhubri","11-Aug":"Agartala","12-Aug":"Agartala","13-Aug":"Agartala","18-Aug":"Nagaon","19-Aug":"Hojai","25-Aug":"Dibrugarh","26-Aug":"Duliajan","27-Aug":"Tinsukia"}
+};
+
+// — Google Sheet ID (responses written here) ——————————————
+const SHEET_ID = '1FOqhZIVN0dyqKLwea06t3EVDFKRD4LWXvt0_LFCRIqU';
+// — Apps Script Web App URL ————————————————————————————————
+// SETUP STEPS:
+// 1. Open the Google Sheet: https://docs.google.com/spreadsheets/d/1FOqhZIVN0dyqKLwea06t3EVDFKRD4LWXvt0_LFCRIqU
+// 2. Extensions → Apps Script → Paste the doPost code below → Deploy as Web App
+// 3. Copy the Web App URL and replace 'YOUR_APPS_SCRIPT_URL_HERE' below
+//
+// — APPS SCRIPT CODE (paste in Extensions → Apps Script) ——————
+// function doPost(e) {
+//   try {
+//     var data = JSON.parse(e.postData.contents);
+//     var ss = SpreadsheetApp.openById('1FOqhZIVN0dyqKLwea06t3EVDFKRD4LWXvt0_LFCRIqU');
+//     var tabName = data.sheet_tab || 'Partner Meet Responses';
+//     var sheet = ss.getSheetByName(tabName);
+//     if (!sheet) sheet = ss.insertSheet(tabName);
+//     // Auto-create header row if empty
+//     if (sheet.getLastRow() === 0) {
+//       var pm_headers = ['Timestamp','Leader Name','Employee ID','Designation','Zone','Region','Planned Date','Visit City','Partner GID','Partner Name','Partner Contact','Existing/New','Potential Bucket','Partner Status','Purpose of Visit','Active Challenges','Business Trend','Leader Confidence','Inactive Reason','Motor LOB','Support Required','Overall Outcome','Notes'];
+//       var tc_headers = ['Timestamp','Leader Name','Employee ID','Designation','Zone','Region','Planned Date','Visit City','Visit Mode','Branch Name','Branch City','Meeting Type','Primary Objective','Team Size','Agenda','Action Items','Team Health','Biggest Challenge'];
+//       var im_headers = ['Timestamp','Leader Name','Employee ID','Designation','Zone','Region','Planned Date','Visit City','Insurer Name','Purpose','Key Discussion Areas','Key Outcomes','Overall Outcome'];
+//       if (tabName.indexOf('Partner')>-1) sheet.appendRow(pm_headers);
+//       else if (tabName.indexOf('Team')>-1) sheet.appendRow(tc_headers);
+//       else sheet.appendRow(im_headers);
+//     }
+//     var row = [];
+//     var type = data.visit_type;
+//     var ts = new Date().toLocaleString('en-IN');
+//     if (type === 'pm') {
+//       row = [ts,data.emp_name,data.emp_id,data.designation,data.zone,data.region,data.planned_date,data.city,data.partner_gid,data.partner_name,data.partner_contact,data.exist_new,data.bucket,data.status,data.purpose,data.active_challenges,data.trend,data.confidence,data.inactive_reason,data.lob,data.support,data.outcome,data.notes];
+//     } else if (type === 'tc') {
+//       row = [ts,data.emp_name,data.emp_id,data.designation,data.zone,data.region,data.planned_date,data.city,data.mode,data.branch,data.bcity,data.meet_type,data.objective,data.team_size,data.agenda,data.actions,data.health,data.challenge];
+//     } else if (type === 'im') {
+//       row = [ts,data.emp_name,data.emp_id,data.designation,data.zone,data.region,data.planned_date,data.city,data.insurer,data.purpose,data.discussion_areas,data.outcomes_text,data.outcome];
+//     }
+//     sheet.appendRow(row);
+//     return ContentService.createTextOutput(JSON.stringify({status:'success'})).setMimeType(ContentService.MimeType.JSON);
+//   } catch(err) {
+//     return ContentService.createTextOutput(JSON.stringify({status:'error',msg:err.toString()})).setMimeType(ContentService.MimeType.JSON);
+//   }
+// }
+// ————————————————————————————————————————————————————————————
+const APPS_SCRIPT_URL = 'YOUR_APPS_SCRIPT_URL_HERE';
+// Sheet names for each form type
+const SHEET_TABS = {
+  pm: 'Partner Meet Responses',
+  tc: 'Team Connect Responses',
+  im: 'Insurer Meet Responses'
+};
+
+// — SAMPLE DATA — pre-seeded for demo (shows in My Reports) ———
+const SAMPLE_SUBMISSIONS = {
+  'SAMPLE_10055070': {
+    type:'pm', dk:'4-Aug', ts:'2026-08-04T11:30:00.000Z',
+    payload:{visit_type:'pm',emp_id:'10055070',emp_name:'Anil Kumar',designation:'ZH',zone:'North',region:'North',planned_date:'4-Aug',city:'Lucknow',partner_gid:'GID004521',partner_name:'Rajesh Motors',partner_contact:'9876543210',exist_new:'Existing',bucket:'HPP (>₹1L Potential)',status:'Active',purpose:'Increase Business from Existing Partner',active_challenges:'Low Customer Demand, Pricing / Commission',trend:'Stable',confidence:'Needs Follow-up',inactive_reason:'',lob:'Private Cars',support:'Product Training, Marketing Material',outcome:'Positive',notes:'Partner is keen to expand; needs better pricing on OD renewals. Follow-up scheduled for Aug 11.'}
+  },
+  'SAMPLE_10055785': {
+    type:'tc', dk:'3-Aug', ts:'2026-08-03T14:15:00.000Z',
+    payload:{visit_type:'tc',emp_id:'10055785',emp_name:'Sundeep Bhati',designation:'RH',zone:'North',region:'Haryana',planned_date:'3-Aug',city:'Delhi',mode:'Offline',branch:'Connaught Place Branch',bcity:'Delhi',meet_type:'Performance Review',objective:'Productivity Improvement',team_size:'12',agenda:'Reviewed August targets, discussed activation backlog, motivated team for week 2 push.',actions:'Each RM to activate 3 new partners by 10-Aug. Branch manager to share daily MIS.',health:'Good',challenge:'Low Activation'}
+  },
+  'SAMPLE_90007371': {
+    type:'im', dk:'1-Aug', ts:'2026-08-01T16:45:00.000Z',
+    payload:{visit_type:'im',emp_id:'90007371',emp_name:'Vikram Thakur',designation:'RH',zone:'RON',region:'J&K',planned_date:'1-Aug',city:'Jammu',insurer:'Bajaj Allianz',purpose:'Business Review',discussion_areas:'Pricing, Growth Plan, New Opportunities',outcomes_text:'Agreed on 15% volume growth target for Q3. Bajaj to offer special TP pricing for J&K commercial vehicles. Next review in September.',outcome:'Action Closed'}
+  }
+};
+
+// —————————————————————————————————————————————
+// STATE
+// —————————————————————————————————————————————
+let currentUser = null;
+let isAdmin = false;
+let submissions = {}; // {empId: {dateKey: {type, data, ts}}}
+let currentFormTab = 'pm';
+let selectedPlanDate = {}; // per form type
+
+// —————————————————————————————————————————————
+// INIT
+// —————————————————————————————————————————————
+window.addEventListener('DOMContentLoaded', () => {
+  loadFromStorage();
+  setTimeout(() => {
+    const splash = document.getElementById('splash');
+    splash.classList.add('hide');
+    // After fade completes, fully remove from layout so it can't block input
+    setTimeout(() => { splash.style.display = 'none'; }, 500);
+
+    const saved = localStorage.getItem('id_fvt_user');
+    if (saved) {
+      try {
+        currentUser = JSON.parse(saved);
+        isAdmin = currentUser.id === '0001';
+        showApp();
+      } catch(e) {
+        localStorage.removeItem('id_fvt_user');
+        showLogin();
+      }
+    } else {
+      showLogin();
+    }
+  }, 1200);
+});
+
+function showLogin() {
+  document.getElementById('loginScreen').classList.add('on');
+  document.getElementById('app').classList.remove('on');
+  document.getElementById('successScreen').classList.remove('on');
+  // Focus input after a tiny delay so the transition is done
+  setTimeout(() => {
+    const inp = document.getElementById('empIdInput');
+    if (inp) inp.focus();
+  }, 150);
+}
+
+function loadFromStorage() {
+  const s = localStorage.getItem('id_fvt_submissions');
+  if (s) {
+    submissions = JSON.parse(s);
+  } else {
+    // Seed sample data on first load
+    submissions = {};
+    Object.entries(SAMPLE_SUBMISSIONS).forEach(([key, val]) => {
+      const empId = val.payload.emp_id;
+      if (!submissions[empId]) submissions[empId] = {};
+      submissions[empId][key] = val;
+    });
+    saveToStorage();
+  }
+}
+function saveToStorage() {
+  localStorage.setItem('id_fvt_submissions', JSON.stringify(submissions));
+}
+
+// —————————————————————————————————————————————
+// LOGIN
+// —————————————————————————————————————————————
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('loginScreen').classList.contains('on')) doLogin();
+});
+
+function doLogin() {
+  const rawId = document.getElementById('empIdInput').value.trim();
+  const err = document.getElementById('loginErr');
+  err.classList.remove('on');
+  if (!rawId) { showLoginErr('Please enter your Employee ID.'); return; }
+
+  if (rawId === '0001') {
+    currentUser = {id:'0001',name:'Central Admin',role:'Admin',zone:'All',region:'All',base:'HO',plan:0};
+    isAdmin = true;
+    localStorage.setItem('id_fvt_user', JSON.stringify(currentUser));
+    showApp();
+    return;
+  }
+
+  const emp = LEADERS.find(e => e.id === rawId || e.id === rawId.replace(/\.0*$/,''));
+  if (!emp) { showLoginErr('Employee ID not found. Check and try again, or contact Admin.'); return; }
+  currentUser = emp; isAdmin = false;
+  localStorage.setItem('id_fvt_user', JSON.stringify(emp));
+  showApp();
+}
+function showLoginErr(msg) {
+  const e = document.getElementById('loginErr');
+  e.textContent = msg; e.classList.add('on');
+}
+function doLogout() {
+  localStorage.removeItem('id_fvt_user');
+  currentUser = null; isAdmin = false;
+  document.getElementById('app').classList.remove('on');
+  document.getElementById('empIdInput').value = '';
+  showLogin();
+}
+
+// —————————————————————————————————————————————
+// SHOW APP
+// —————————————————————————————————————————————
+function showApp() {
+  document.getElementById('loginScreen').classList.remove('on');
+  document.getElementById('app').classList.add('on');
+  updateTopbar();
+  updateSidebar();
+
+  if (isAdmin) {
+    // Admin sees ONLY the central dashboard - hide leader nav items
+    document.getElementById('nav-admin').style.display = '';
+    document.getElementById('adminNavSection').style.display = '';
+    document.getElementById('nav-home').style.display = 'none';
+    document.getElementById('nav-calendar').style.display = 'none';
+    document.getElementById('nav-report').style.display = 'none';
+    document.getElementById('nav-history').style.display = 'none';
+    navigate('admin');
+  } else {
+    // Leaders: hide admin nav strictly
+    document.getElementById('nav-admin').style.display = 'none';
+    document.getElementById('adminNavSection').style.display = 'none';
+    document.getElementById('nav-home').style.display = '';
+    document.getElementById('nav-calendar').style.display = '';
+    document.getElementById('nav-report').style.display = '';
+    document.getElementById('nav-history').style.display = '';
+    populateForms();
+    renderHome();
+    buildPlanSelectors();
+    navigate('home');
+  }
+}
+
+function updateTopbar() {
+  const now = new Date();
+  document.getElementById('tbDate').textContent = now.toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const day = now.getDay();
+  const isTravelDay = [2,3,4].includes(day); // Tue=2,Wed=3,Thu=4
+  const badge = document.getElementById('travelBadge');
+  badge.className = 'tb-travel-badge ' + (isTravelDay ? 'travel' : 'notravel');
+  document.getElementById('travelBadgeText').textContent = isTravelDay ? '● Travel Day' : 'Non-Travel Day';
+}
+
+function updateSidebar() {
+  if (!currentUser) return;
+  const u = currentUser;
+  document.getElementById('sbUserName').textContent = u.name;
+  document.getElementById('sbUserRole').textContent = u.role + ' · ' + u.zone;
+  document.getElementById('userAva').textContent = u.name.charAt(0);
+}
+
+// —————————————————————————————————————————————
+// NAVIGATION
+// —————————————————————————————————————————————
+function navigate(view) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  const ni = document.getElementById('nav-'+view);
+  if (ni) ni.classList.add('active');
+  const vi = document.getElementById('view-'+view);
+  if (vi) vi.classList.add('active');
+  const titles = {home:'Dashboard',calendar:'My Travel Plan',report:'Submit Visit Report',history:'My Reports',admin:'Central Dashboard'};
+  document.getElementById('tbPageTitle').textContent = titles[view] || view;
+
+  // Render on navigate
+  if (view === 'home') renderHome();
+  if (view === 'calendar') renderFullCalendar();
+  if (view === 'history') renderHistory();
+  if (view === 'admin') renderAdmin();
+
+  // Close sidebar on mobile
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sbOverlay').classList.remove('on');
+}
+
+function toggleSidebar() {
+  const sb = document.getElementById('sidebar');
+  const ov = document.getElementById('sbOverlay');
+  sb.classList.toggle('open');
+  ov.classList.toggle('on');
+}
+
+// —————————————————————————————————————————————
+// HELPERS — DATE & PLAN
+// —————————————————————————————————————————————
+function getToday() { return new Date(); }
+function dateKey(d) { // "4-Aug" style
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return d.getDate()+'-'+months[d.getMonth()];
+}
+function parseDateKey(key) { // "4-Aug" → Date in 2026
+  const parts = key.split('-');
+  const months = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+  return new Date(2026, months[parts[1]], parseInt(parts[0]));
+}
+function fmtDate(d) { return d.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}); }
+function fmtDay(d) { return d.toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short'}); }
+function getWeekDates() {
+  const now = new Date(); const dow = now.getDay();
+  const mon = new Date(now); mon.setDate(now.getDate() - (dow===0?6:dow-1));
+  const sun = new Date(mon); sun.setDate(mon.getDate()+6);
+  return {start:mon,end:sun};
+}
+
+function getMyPlan() {
+  if (!currentUser || isAdmin) return {};
+  return TRAVEL_PLANS[currentUser.id] || {};
+}
+
+function getSubmission(empId, dk) {
+  // Returns first submission for a given planned date key
+  const subs = submissions[empId] || {};
+  const match = Object.values(subs).find(s => s.dk === dk);
+  return match || null;
+}
+
+function getVisitStatus(dateKey) {
+  const now = getToday();
+  const planDate = parseDateKey(dateKey);
+  const sub = getSubmission(currentUser.id, dateKey);
+  if (sub) return 'visited';
+  if (planDate < new Date(now.getFullYear(), now.getMonth(), now.getDate())) return 'missed';
+  if (dateKey === dateKey_today()) return 'today';
+  return 'planned';
+}
+
+function dateKey_today() {
+  return dateKey(getToday());
+}
+
+function isTravelDay(date) {
+  const d = date.getDay();
+  return [2,3,4].includes(d); // Tue Wed Thu
+}
+
+// —————————————————————————————————————————————
+// HOME DASHBOARD
+// —————————————————————————————————————————————
+function renderHome() {
+  if (!currentUser || isAdmin) return;
+  const plan = getMyPlan();
+  const planDates = Object.keys(plan);
+  const now = getToday();
+  const todayKey = dateKey_today();
+
+  let done=0, missed=0, todayVisits=[], weekVisits=[];
+  const {start,end} = getWeekDates();
+
+  planDates.forEach(dk => {
+    const s = getVisitStatus(dk);
+    if (s==='visited') done++;
+    if (s==='missed') missed++;
+    if (dk === todayKey) todayVisits.push(plan[dk]);
+    const pd = parseDateKey(dk);
+    if (pd >= start && pd <= end) weekVisits.push(dk);
+  });
+
+  const total = currentUser.plan;
+  const pending = total - done - missed;
+  const pct = total > 0 ? Math.round(done/total*100) : 0;
+  const citiesDone = planDates.filter(dk=>getSubmission(currentUser.id,dk)).map(dk=>plan[dk]);
+  const uniqueCities = new Set(citiesDone).size;
+
+  document.getElementById('kPlan').textContent = total;
+  document.getElementById('kDone').textContent = done;
+  document.getElementById('kDonePct').textContent = pct+'% complete';
+  document.getElementById('kPend').textContent = Math.max(0,pending);
+  document.getElementById('kMiss').textContent = missed;
+  document.getElementById('kToday').textContent = todayVisits.length || '—';
+  document.getElementById('kTodayCity').textContent = todayVisits.join(', ') || 'No visit today';
+  document.getElementById('kWeek').textContent = weekVisits.length;
+  document.getElementById('kPct').textContent = pct+'%';
+  document.getElementById('kCities').textContent = uniqueCities;
+
+  // Today banner
+  const banner = document.getElementById('todayBanner');
+  if (todayVisits.length) {
+    banner.style.display = 'flex';
+    document.getElementById('todayBannerText').textContent = todayVisits.join(', ');
+  } else { banner.style.display = 'none'; }
+
+  renderMiniCalendar(plan);
+  renderAlerts(plan, todayKey);
+  renderUpcoming(plan);
+}
+
+function renderMiniCalendar(plan) {
+  const cont = document.getElementById('miniCalendar');
+  // Simple week-based mini calendar
+  const weeks = [];
+  // Aug 2026: Aug 1 = Saturday (day 6)
+  let cells = [];
+  const aug1 = new Date(2026,7,1);
+  const firstDay = aug1.getDay(); // Saturday = 6
+  // Fill leading blanks
+  for(let i=0;i<firstDay;i++) cells.push(null);
+  for(let d=1;d<=31;d++) cells.push(d);
+
+  const days = ['S','M','T','W','T','F','S'];
+  let html = '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">';
+  days.forEach(d => html += `<div style="text-align:center;font-size:9px;font-weight:700;color:var(--txt3);padding:4px 0">${d}</div>`);
+  cells.forEach(d => {
+    if (!d) { html += '<div></div>'; return; }
+    const dk = d+'-Aug';
+    const city = plan[dk];
+    const status = city ? getVisitStatus(dk) : '';
+    const isToday = d === getToday().getDate() && getToday().getMonth()===7 && getToday().getFullYear()===2026;
+    let bg = 'transparent', color = 'var(--txt2)', fw = '500';
+    if (isToday) { bg='var(--navy)'; color='#fff'; }
+    else if (status==='visited') { bg='var(--green-s)'; color='var(--green)'; }
+    else if (status==='missed') { bg='var(--rose-s)'; color='var(--rose)'; }
+    else if (status==='planned') { bg='var(--blue-s)'; color='var(--blue)'; }
+    html += `<div style="text-align:center;padding:4px 2px;border-radius:6px;background:${bg};cursor:${city?'pointer':'default'}"
+      onclick="${city?`showVisitModal('${dk}','${city}','${status}')`:''}">
+      <div style="font-size:11px;font-weight:${isToday?800:500};color:${color}">${d}</div>
+      ${city ? `<div style="font-size:7px;color:${color};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:28px;margin:0 auto">${city.substring(0,4)}</div>` : ''}
+    </div>`;
+  });
+  html += '</div>';
+  cont.innerHTML = html;
+}
+
+function renderAlerts(plan, todayKey) {
+  const cont = document.getElementById('alertsList');
+  let html = '';
+  const now = getToday();
+
+  // Today
+  if (plan[todayKey]) {
+    const sub = getSubmission(currentUser.id, todayKey);
+    html += `<div style="background:var(--amber-s);border:1px solid rgba(245,158,11,.3);border-radius:var(--r);padding:10px 12px;margin-bottom:8px">
+      <div style="font-size:11px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.05em">Today</div>
+      <div style="font-size:13px;font-weight:700;color:var(--navy);margin-top:3px">📍 ${plan[todayKey]}</div>
+      <div style="font-size:11px;color:var(--txt3);margin-top:2px">${sub ? '✓ Reported' : '⏳ Not yet submitted'}</div>
+    </div>`;
+  }
+
+  // Missed
+  const missed = Object.keys(plan).filter(dk => getVisitStatus(dk)==='missed');
+  if (missed.length) {
+    html += `<div style="background:var(--rose-s);border:1px solid rgba(244,63,94,.25);border-radius:var(--r);padding:10px 12px;margin-bottom:8px">
+      <div style="font-size:11px;font-weight:700;color:var(--rose);text-transform:uppercase;letter-spacing:.05em">⚠️ Missed Visits (${missed.length})</div>
+      ${missed.map(dk=>`<div style="font-size:12px;color:var(--rose);margin-top:4px">• ${plan[dk]} · ${dk}</div>`).join('')}
+    </div>`;
+  }
+
+  // Upcoming (next 5)
+  const upcoming = Object.keys(plan)
+    .filter(dk => getVisitStatus(dk)==='planned')
+    .sort((a,b) => parseDateKey(a)-parseDateKey(b))
+    .slice(0,5);
+
+  upcoming.forEach(dk => {
+    html += `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bdr)">
+      <div style="font-size:11px;font-weight:700;color:var(--blue);background:var(--blue-s);padding:3px 8px;border-radius:6px;flex-shrink:0">${dk}</div>
+      <div style="font-size:12px;font-weight:600;color:var(--navy)">${plan[dk]}</div>
+    </div>`;
+  });
+
+  cont.innerHTML = html || '<div style="color:var(--txt3);font-size:12px">No alerts</div>';
+}
+
+function renderUpcoming(plan) {
+  const cont = document.getElementById('upcomingTimeline');
+  const items = Object.keys(plan)
+    .map(dk => ({dk, city:plan[dk], status:getVisitStatus(dk), date:parseDateKey(dk)}))
+    .sort((a,b) => a.date-b.date)
+    .filter(i => i.status !== 'missed')
+    .slice(0,10);
+
+  if (!items.length) { cont.innerHTML = '<div style="color:var(--txt3);font-size:12px;text-align:center;padding:16px">No upcoming visits</div>'; return; }
+
+  cont.innerHTML = '<div class="timeline">' + items.map(i => {
+    const d = i.date; const day = d.getDate(); const mon = d.toLocaleDateString('en-IN',{month:'short'});
+    const stClass = i.status==='visited'?'visited':i.status==='today'?'today':'planned';
+    const stTxt = i.status==='visited'?'Visited':i.status==='today'?'Today':'Planned';
+    return `<div class="tl-item" onclick="showVisitModal('${i.dk}','${i.city}','${i.status}')">
+      <div class="tl-date"><div class="tl-dd">${day}</div><div class="tl-dm">${mon}</div></div>
+      <div class="tl-divider"></div>
+      <div class="tl-body">
+        <div class="tl-name">📍 ${i.city}</div>
+        <div class="tl-meta">
+          <span class="tl-type-badge pm">Partner Meet</span>
+          <span>${d.toLocaleDateString('en-IN',{weekday:'short'})}</span>
+        </div>
+      </div>
+      <div class="tl-status ${stClass}">${stTxt}</div>
+    </div>`;
+  }).join('') + '</div>';
+}
+
+// —————————————————————————————————————————————
+// FULL CALENDAR
+// —————————————————————————————————————————————
+function renderFullCalendar() {
+  if (!currentUser || isAdmin) return;
+  const plan = getMyPlan();
+  // Aug 2026 starts on Saturday (day=6)
+  const aug1Day = 6; // Saturday
+  let cells = [];
+  for(let i=0;i<aug1Day;i++) cells.push(null);
+  for(let d=1;d<=31;d++) cells.push(d);
+  while(cells.length%7!==0) cells.push(null);
+
+  const body = document.getElementById('fullCalBody');
+  body.innerHTML = cells.map(d => {
+    if (!d) return '<div class="cal-day other-month"></div>';
+    const dk = d+'-Aug';
+    const city = plan[dk];
+    const isToday = d===getToday().getDate() && getToday().getMonth()===7 && getToday().getFullYear()===2026;
+    const isTD = isTravelDay(new Date(2026,7,d));
+    const status = city ? getVisitStatus(dk) : '';
+    let dotClass = 'pm'; let dotText = city || '';
+    if (status==='visited') dotClass='pm visited';
+    if (status==='missed') dotClass='missed';
+
+    return `<div class="cal-day${isToday?' today':''}${city?' has-visit':''}${!isTD?' non-travel-day':''}"
+      onclick="${city?`showVisitModal('${dk}','${city}','${status}')`:''}"
+      title="${city?`${dk}: ${city}`:''}">
+      <div class="day-num">${d}</div>
+      ${city ? `<div class="day-dot ${dotClass}">${dotText}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  // All visits list
+  const allVis = document.getElementById('allVisitsList');
+  const sorted = Object.keys(plan).sort((a,b)=>parseDateKey(a)-parseDateKey(b));
+  allVis.innerHTML = '<div class="timeline">' + sorted.map(dk => {
+    const city = plan[dk]; const d = parseDateKey(dk); const status = getVisitStatus(dk);
+    const stClass = {visited:'visited',missed:'missed',today:'today',planned:'planned'}[status];
+    const stTxt = {visited:'✓ Visited',missed:'⚠️ Missed',today:'📍 Today',planned:'📅 Planned'}[status];
+    return `<div class="tl-item" onclick="showVisitModal('${dk}','${city}','${status}')">
+      <div class="tl-date"><div class="tl-dd">${d.getDate()}</div><div class="tl-dm">${d.toLocaleDateString('en-IN',{month:'short'})}</div></div>
+      <div class="tl-divider"></div>
+      <div class="tl-body">
+        <div class="tl-name">📍 ${city}</div>
+        <div class="tl-meta"><span>${d.toLocaleDateString('en-IN',{weekday:'long'})}</span></div>
+      </div>
+      <div class="tl-status ${stClass}">${stTxt}</div>
+    </div>`;
+  }).join('') + '</div>';
+}
+
+// —————————————————————————————————————————————
+// FORM — AUTO FILL & PLAN SELECTOR
+// —————————————————————————————————————————————
+function populateForms() {
+  if (!currentUser) return;
+  const u = currentUser;
+  ['pm','tc','im'].forEach(t => {
+    const n = document.getElementById(t+'_name');
+    const de = document.getElementById(t+'_desig');
+    const co = document.getElementById(t+'_code');
+    if (n) n.value = u.name;
+    if (de) de.value = u.role + ' — ' + u.region;
+    if (co) co.value = u.id;
+  });
+  const pz = document.getElementById('pm_zone');
+  const pr = document.getElementById('pm_region');
+  if (pz) pz.value = u.zone;
+  if (pr) pr.value = u.region;
+}
+
+function buildPlanSelectors() {
+  if (!currentUser || isAdmin) return;
+  const plan = getMyPlan();
+  const sorted = Object.keys(plan).sort((a,b)=>parseDateKey(a)-parseDateKey(b));
+
+  ['pm','tc','im'].forEach(formType => {
+    const sel = document.getElementById(formType+'_planSelector');
+    if (!sel) return;
+    if (!sorted.length) {
+      sel.innerHTML = '<div style="padding:14px;color:var(--txt3);font-size:12px;text-align:center">No planned visits found for August 2026</div>';
+      return;
+    }
+    sel.innerHTML = sorted.map(dk => {
+      const city = plan[dk];
+      const existingSubs = getPlanSubmissions(currentUser.id, dk);
+      const subCount = existingSubs.length;
+      const status = getVisitStatus(dk);
+      // Allow multiple submissions — show count badge if already submitted
+      const stClass = subCount > 0 ? 'done' : (status==='missed' ? 'missed' : 'open');
+      const stTxt = subCount > 0 ? `✓ ${subCount} submitted` : (status==='missed' ? 'Missed' : 'Open');
+      return `<label class="plan-item" onclick="selectPlanDate('${formType}','${dk}','${city}')">
+        <input type="radio" name="${formType}_plan" value="${dk}">
+        <div class="pi-date">${dk}</div>
+        <div class="pi-city">📍 ${city}</div>
+        <div class="pi-status ${stClass}">${stTxt}</div>
+      </label>`;
+    }).join('');
+  });
+}
+
+function selectPlanDate(formType, dk, city) {
+  selectedPlanDate[formType] = {dk, city};
+  const cityEl = document.getElementById(formType+'_city');
+  const dateEl = document.getElementById(formType+'_date');
+  if (cityEl) cityEl.value = city;
+  if (dateEl) {
+    const d = parseDateKey(dk);
+    dateEl.value = d.toISOString().split('T')[0];
+  }
+  // Update Partner Meet preview card
+  if (formType === 'pm') {
+    const prev = document.getElementById('pm_selectedPreview');
+    const sc = document.getElementById('pm_selCity');
+    const sd = document.getElementById('pm_selDate');
+    if (prev) prev.style.display = 'flex';
+    if (sc) sc.textContent = city;
+    if (sd) sd.textContent = dk + ' · ' + parseDateKey(dk).toLocaleDateString('en-IN',{weekday:'long'});
+  }
+  document.querySelectorAll(`#${formType}_planSelector .plan-item`).forEach(el => el.classList.remove('selected-plan'));
+  const selected = document.querySelector(`#${formType}_planSelector input[value="${dk}"]`);
+  if (selected) selected.closest('.plan-item').classList.add('selected-plan');
+}
+
+function resetFormAndAddAnother(type) {
+  // Clear form fields but stay on same tab
+  const fields = {
+    pm: ['pm_gid','pm_pname','pm_contact','pm_notes'],
+    tc: ['tc_size','tc_agenda','tc_actions','tc_challengeOther','tc_branch','tc_bcity'],
+    im: ['im_insurerOther','im_outcomes']
+  };
+  (fields[type]||[]).forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  // Reset selects
+  const selects = {
+    pm: ['pm_bucket','pm_purpose','pm_lob','pm_outcome','pm_trend','pm_confidence','pm_inactiveReason'],
+    tc: ['tc_meetType','tc_objective','tc_health','tc_challenge'],
+    im: ['im_insurer','im_purpose','im_outcome']
+  };
+  (selects[type]||[]).forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  // Reset checkboxes including LOB multi-select
+  document.querySelectorAll(`#form-${type} input[type=checkbox]`).forEach(cb => {
+    cb.checked = false;
+    const parent = cb.closest('.check-opt');
+    if (parent) parent.classList.remove('selected');
+  });
+  document.querySelectorAll('input[name="pm_lob"]').forEach(cb => { cb.checked = false; const p = cb.closest('.check-opt'); if(p) p.classList.remove('selected'); });
+  document.querySelectorAll(`#form-${type} input[type=radio]`).forEach(rb => { rb.checked = false; const p = rb.closest('.radio-opt'); if(p) p.classList.remove('selected'); });
+  document.querySelectorAll(`#form-${type} .cond-block`).forEach(el => el.classList.remove('on'));
+  // Reset plan selection
+  selectedPlanDate[type] = null;
+  document.querySelectorAll(`#${type}_planSelector .plan-item`).forEach(el => el.classList.remove('selected-plan'));
+  document.querySelectorAll(`#${type}_planSelector input[type=radio]`).forEach(rb => rb.checked = false);
+  if (type==='pm') {
+    const prev = document.getElementById('pm_selectedPreview');
+    if (prev) prev.style.display = 'none';
+  }
+  // Scroll to top of form
+  document.getElementById('view-report').scrollTo({top:0,behavior:'smooth'});
+  document.getElementById('mainContent').scrollTo({top:0,behavior:'smooth'});
+  showToast('Form cleared. Select another planned visit to continue.', 'success');
+}
+
+// —————————————————————————————————————————————
+// FORM TABS
+// —————————————————————————————————————————————
+function switchFormTab(type) {
+  currentFormTab = type;
+  ['pm','tc','im'].forEach(t => {
+    document.getElementById('ftab-'+t).classList.remove('active','pm','tc','im');
+    document.getElementById('form-'+t).style.display = 'none';
+  });
+  document.getElementById('ftab-'+type).classList.add('active',type);
+  document.getElementById('form-'+type).style.display = '';
+}
+
+// —————————————————————————————————————————————
+// CONDITIONAL LOGIC
+// —————————————————————————————————————————————
+function togglePartnerStatus(status) {
+  document.getElementById('cond_active').classList.toggle('on', status==='Active');
+  document.getElementById('cond_inactive').classList.toggle('on', status==='Inactive');
+}
+function togglePurposeOther() {
+  const val = document.getElementById('pm_purpose').value;
+  document.getElementById('cond_purposeOther').classList.toggle('on', val==='Other');
+}
+function toggleChallengeOther() {
+  const cbs = document.querySelectorAll('#pm_challenges input[value="Other"]');
+  const checked = [...cbs].some(cb => cb.checked);
+  document.getElementById('cond_challengeOther').classList.toggle('on', checked);
+}
+function toggleTCMode(mode) {
+  document.getElementById('cond_tc_offline').classList.toggle('on', mode==='Offline');
+}
+function toggleTCChallengeOther() {
+  const val = document.getElementById('tc_challenge').value;
+  document.getElementById('cond_tc_challenge').classList.toggle('on', val==='Other');
+}
+function toggleOtherInsurer() {
+  const val = document.getElementById('im_insurer').value;
+  document.getElementById('cond_otherInsurer').classList.toggle('on', val==='Other');
+}
+
+// Styled checkboxes / radios
+document.addEventListener('change', e => {
+  const parent = e.target.closest('.radio-opt, .check-opt');
+  if (!parent) return;
+  if (parent.classList.contains('radio-opt')) {
+    const grp = parent.closest('.radio-group');
+    if (grp) grp.querySelectorAll('.radio-opt').forEach(o => o.classList.remove('selected'));
+  }
+  if (e.target.checked) parent.classList.add('selected');
+  else parent.classList.remove('selected');
+});
+
+// —————————————————————————————————————————————
+// PHOTO UPLOAD
+// —————————————————————————————————————————————
+function handlePhotos(input, previewId) {
+  const files = [...input.files].slice(0,3);
+  const preview = document.getElementById(previewId);
+  preview.innerHTML = '';
+  files.forEach(f => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:relative;display:inline-block';
+      wrap.innerHTML = `<img src="${e.target.result}" style="width:70px;height:70px;object-fit:cover;border-radius:var(--r);border:1.5px solid var(--bdr)"/>
+        <button style="position:absolute;top:-5px;right:-5px;width:18px;height:18px;background:var(--rose);color:#fff;border-radius:50%;font-size:10px;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center" onclick="this.parentElement.remove()">✕</button>`;
+      preview.appendChild(wrap);
+    };
+    reader.readAsDataURL(f);
+  });
+  if (files.length > 3) showToast('Max 3 photos allowed','warn');
+}
+
+// —————————————————————————————————————————————
+// FORM SUBMIT — supports multiple visits per day
+// —————————————————————————————————————————————
+// sessionVisits stores visits added this session before final submit
+let sessionVisits = []; // [{type, payload, dk}]
+
+function submitForm(type) {
+  if (!validateForm(type)) return;
+  const btn = document.querySelector(`#form-${type} .btn-submit`);
+  btn.disabled = true;
+  btn.innerHTML = '<div class="sp-spin" style="width:20px;height:20px;border-width:2px;border-color:rgba(255,255,255,.3);border-top-color:#fff"></div> Saving…';
+
+  const payload = buildPayload(type);
+  const dk = selectedPlanDate[type]?.dk;
+  // Use dateKey + timestamp for uniqueness (allows multiple per day)
+  const subKey = dk + '_' + Date.now();
+
+  // Save to local state
+  if (!submissions[currentUser.id]) submissions[currentUser.id] = {};
+  submissions[currentUser.id][subKey] = {type, payload, ts: new Date().toISOString(), dk};
+  saveToStorage();
+
+  // Write to Google Sheet via Apps Script
+  writeToSheet(type, payload);
+
+  setTimeout(() => {
+    btn.disabled = false;
+    btn.innerHTML = {pm:'Submit Partner Visit Report →',tc:'Submit Team Connect Report →',im:'Submit Insurer Meet Report →'}[type];
+    showSuccess(type, payload, dk);
+    buildPlanSelectors();
+  }, 900);
+}
+
+function writeToSheet(type, payload) {
+  if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL_HERE') return;
+  const body = {sheet_tab: SHEET_TABS[type], sheet_id: SHEET_ID, ...payload};
+  fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body)
+  }).catch(() => {});
+}
+
+// Check if a specific planned date already has a submission (for plan selector badge)
+function getPlanSubmissions(empId, dk) {
+  const subs = submissions[empId] || {};
+  return Object.values(subs).filter(s => s.dk === dk);
+}
+
+function validateForm(type) {
+  const plan = selectedPlanDate[type];
+  if (!plan) { showToast('Please select a planned visit first', 'error'); return false; }
+
+  const checks = {
+    pm: [{id:'pm_gid',msg:'Partner GID is required'},{id:'pm_pname',msg:'Partner Name is required'},{id:'pm_purpose',msg:'Purpose of visit is required'},{id:'pm_outcome',msg:'Meeting outcome is required'}],
+    tc: [{id:'tc_meetType',msg:'Meeting type is required'},{id:'tc_objective',msg:'Primary objective is required'},{id:'tc_agenda',msg:'Agenda is required'},{id:'tc_health',msg:'Team health is required'}],
+    im: [{id:'im_insurer',msg:'Insurer name is required'},{id:'im_purpose',msg:'Purpose is required'},{id:'im_outcome',msg:'Outcome is required'}]
+  };
+
+  for (const c of (checks[type]||[])) {
+    const el = document.getElementById(c.id);
+    if (!el || !el.value?.trim()) { showToast(c.msg, 'error'); el?.focus(); return false; }
+  }
+
+  // LOB multi-select validation for PM
+  if (type === 'pm') {
+    const lobChecked = document.querySelectorAll('input[name="pm_lob"]:checked').length;
+    if (!lobChecked) { showToast('Please select at least one Line of Business (LOB)', 'error'); return false; }
+  }
+
+  // Compliance check
+  const checkMap = {pm:'pm_formCheck',tc:'tc_formCheck',im:'im_formCheck'};
+  if (!document.getElementById(checkMap[type]).checked) { showToast('Please confirm Google Form submission', 'error'); return false; }
+
+  // Multiple visits allowed per day — no duplicate block
+
+  return true;
+}
+
+function buildPayload(type) {
+  const u = currentUser;
+  const pd = selectedPlanDate[type] || {};
+  const base = {visit_type:type, emp_id:u.id, emp_name:u.name, designation:u.role, zone:u.zone, region:u.region, planned_date:pd.dk, city:pd.city, ts:new Date().toISOString()};
+
+  if (type==='pm') {
+    const challenges = [...document.querySelectorAll('#pm_challenges input:checked')].map(i=>i.value);
+    const support = [...document.querySelectorAll('#pm_support input:checked')].map(i=>i.value);
+    const lob = [...document.querySelectorAll('input[name="pm_lob"]:checked')].map(i=>i.value);
+    return {...base,
+      partner_gid:document.getElementById('pm_gid').value,
+      partner_name:document.getElementById('pm_pname').value,
+      partner_contact:document.getElementById('pm_contact').value,
+      exist_new:[...document.querySelectorAll('input[name="pm_existNew"]:checked')].map(i=>i.value).join(''),
+      bucket:document.getElementById('pm_bucket').value,
+      status:[...document.querySelectorAll('input[name="pm_status"]:checked')].map(i=>i.value).join(''),
+      purpose:document.getElementById('pm_purpose').value,
+      purpose_other:document.getElementById('pm_purposeOther')?.value||'',
+      active_challenges:challenges.join(', '),
+      challenge_other:document.getElementById('pm_challengeOther')?.value||'',
+      trend:document.getElementById('pm_trend')?.value||'',
+      confidence:document.getElementById('pm_confidence')?.value||'',
+      inactive_reason:document.getElementById('pm_inactiveReason')?.value||'',
+      lob:lob.join(', '),
+      support:support.join(', '),
+      outcome:document.getElementById('pm_outcome').value,
+      notes:document.getElementById('pm_notes').value
+    };
+  }
+  if (type==='tc') {
+    return {...base,
+      mode:[...document.querySelectorAll('input[name="tc_mode"]:checked')].map(i=>i.value).join(''),
+      branch:document.getElementById('tc_branch')?.value||'',
+      bcity:document.getElementById('tc_bcity')?.value||'',
+      meet_type:document.getElementById('tc_meetType').value,
+      objective:document.getElementById('tc_objective').value,
+      team_size:document.getElementById('tc_size').value,
+      agenda:document.getElementById('tc_agenda').value,
+      actions:document.getElementById('tc_actions')?.value||'',
+      health:document.getElementById('tc_health').value,
+      challenge:document.getElementById('tc_challenge')?.value||'',
+      challenge_other:document.getElementById('tc_challengeOther')?.value||''
+    };
+  }
+  if (type==='im') {
+    const insurer = document.getElementById('im_insurer').value;
+    const discussion = [...document.querySelectorAll('#im_discussion input:checked')].map(i=>i.value);
+    return {...base,
+      insurer: insurer==='Other'?document.getElementById('im_insurerOther').value:insurer,
+      purpose:document.getElementById('im_purpose').value,
+      discussion_areas:discussion.join(', '),
+      outcomes_text:document.getElementById('im_outcomes')?.value||'',
+      outcome:document.getElementById('im_outcome').value
+    };
+  }
+  return base;
+}
+
+// —————————————————————————————————————————————
+// SUCCESS SCREEN
+// —————————————————————————————————————————————
+function showSuccess(type, payload, dk) {
+  const labels = {pm:'Partner Meet',tc:'Team Connect',im:'Insurer Meet'};
+  document.getElementById('successMeta').innerHTML = [
+    {k:'Visit Type',v:labels[type]},{k:'Date',v:dk},{k:'City',v:payload.city},
+    {k:'Leader',v:payload.emp_name},{k:'Zone',v:payload.zone}
+  ].map(r=>`<div class="sc-meta-row"><span class="mk">${r.k}</span><span class="mv">${r.v}</span></div>`).join('');
+  document.getElementById('successScreen').classList.add('on');
+}
+function submitAnother() {
+  document.getElementById('successScreen').classList.remove('on');
+  navigate('report');
+}
+function goHome() {
+  document.getElementById('successScreen').classList.remove('on');
+  renderHome();
+  navigate('home');
+}
+
+// —————————————————————————————————————————————
+// HISTORY — with Edit functionality + Audit Trail
+// —————————————————————————————————————————————
+function renderHistory() {
+  if (!currentUser || isAdmin) return;
+  const subs = submissions[currentUser.id] || {};
+  const cont = document.getElementById('historyList');
+  const keys = Object.keys(subs).sort((a,b)=>{
+    const tsA = subs[a].ts || ''; const tsB = subs[b].ts || '';
+    return tsB.localeCompare(tsA);
+  });
+
+  if (!keys.length) {
+    cont.innerHTML = '<div style="color:var(--txt3);font-size:13px;text-align:center;padding:20px">No reports yet. Capture a visit to see it here.</div>';
+  } else {
+    const labels = {pm:'Partner Meet',tc:'Team Connect',im:'Insurer Meet'};
+    const typeIco = {pm:'🤝',tc:'👥',im:'🏢'};
+    cont.innerHTML = '<div class="timeline">' + keys.map(subKey => {
+      const s = subs[subKey];
+      if (!s || !s.payload) return '';
+      const dk = s.dk || subKey;
+      let d; try { d = parseDateKey(dk); } catch(e) { d = new Date(s.ts); }
+      const submittedAt = new Date(s.ts).toLocaleString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+      const editedAt = s.editedTs ? '· Edited '+new Date(s.editedTs).toLocaleString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+      return `<div class="tl-item" style="flex-wrap:wrap;gap:8px">
+        <div class="tl-date"><div class="tl-dd">${d.getDate()}</div><div class="tl-dm">${d.toLocaleDateString('en-IN',{month:'short'})}</div></div>
+        <div class="tl-divider"></div>
+        <div class="tl-body">
+          <div class="tl-name">${typeIco[s.type]||'📍'} ${s.payload.city || dk} ${s.payload.partner_name ? '· '+s.payload.partner_name : ''}</div>
+          <div class="tl-meta">
+            <span class="tl-type-badge ${s.type}">${labels[s.type]||s.type}</span>
+            <span>Submitted: ${submittedAt}</span>
+            ${editedAt ? `<span style="color:var(--amber)">${editedAt}</span>` : ''}
+          </div>
+          ${s.payload.notes||s.payload.agenda||s.payload.outcomes_text ? `<div style="font-size:11px;color:var(--txt3);margin-top:4px;line-height:1.4">${(s.payload.notes||s.payload.agenda||s.payload.outcomes_text||'').substring(0,80)}${((s.payload.notes||s.payload.agenda||s.payload.outcomes_text||'').length>80)?'…':''}</div>` : ''}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;margin-left:auto;flex-shrink:0">
+          <div class="tl-status visited">✓ Submitted</div>
+          <button onclick="openEditModal('${subKey}')" style="background:transparent;border:1px solid var(--bdr2);color:var(--txt3);border-radius:var(--r);padding:4px 10px;font-size:10px;font-weight:600;cursor:pointer;font-family:var(--font);transition:all .18s" onmouseover="this.style.borderColor='var(--navy)';this.style.color='var(--navy)'" onmouseout="this.style.borderColor='var(--bdr2)';this.style.color='var(--txt3)'">✏️ Edit</button>
+        </div>
+      </div>`;
+    }).join('') + '</div>';
+  }
+
+  // Progress chart
+  const done = keys.length, total = currentUser.plan, pct = total>0?Math.round(done/total*100):0;
+  document.getElementById('myProgressChart').innerHTML = `
+    <div class="bar-row"><div class="bar-label">Completed</div><div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:var(--green)"></div></div><div class="bar-val">${done}</div></div>
+    <div class="bar-row"><div class="bar-label">Pending</div><div class="bar-track"><div class="bar-fill" style="width:${Math.max(0,100-pct)}%;background:var(--blue)"></div></div><div class="bar-val">${Math.max(0,total-done)}</div></div>
+    <div class="bar-row"><div class="bar-label">Completion</div><div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:var(--purple)"></div></div><div class="bar-val">${pct}%</div></div>
+  `;
+  const typeCounts = {pm:0,tc:0,im:0};
+  Object.values(subs).forEach(s => { if(s.type && typeCounts[s.type]!==undefined) typeCounts[s.type]++; });
+  const tc = document.getElementById('myTypeChart');
+  const typeColors = {pm:['var(--pm-c)','Partner Meet'],tc:['var(--tc-c)','Team Connect'],im:['var(--im-c)','Insurer Meet']};
+  tc.innerHTML = Object.entries(typeCounts).map(([t,cnt]) =>
+    `<div class="dl-item"><div class="dl-dot" style="background:${typeColors[t][0]}"></div><span>${typeColors[t][1]}</span><span class="dl-num" style="margin-left:auto">${cnt}</span></div>`
+  ).join('');
+}
+
+// — Edit Submission ——————————————————————————————————————
+let editingSubKey = null;
+function openEditModal(subKey) {
+  const sub = (submissions[currentUser.id]||{})[subKey];
+  if (!sub) return;
+  editingSubKey = subKey;
+  const labels = {pm:'Partner Meet',tc:'Team Connect',im:'Insurer Meet'};
+  const p = sub.payload;
+  document.getElementById('editModalTitle').textContent = `Edit ${labels[sub.type]} — ${sub.dk}`;
+  document.getElementById('editModalBody').innerHTML = `
+    <div style="background:var(--surf2);border:1px solid var(--bdr);border-radius:var(--r);padding:14px;margin-bottom:16px;font-size:12px;color:var(--txt3)">
+      <div>📍 <strong style="color:var(--navy)">${p.city}</strong> · ${sub.dk}</div>
+      <div style="margin-top:4px">Original submission: ${new Date(sub.ts).toLocaleString('en-IN')}</div>
+      ${sub.editedTs?`<div style="color:var(--amber)">Last edited: ${new Date(sub.editedTs).toLocaleString('en-IN')} by ${sub.editedBy||'you'}</div>`:''}
+    </div>
+    <div class="fg mb-16"><div class="fl2">Notes / Observations</div>
+      <textarea class="ftxt" id="edit_notes" placeholder="Update your notes…">${p.notes||p.agenda||p.outcomes_text||''}</textarea>
+    </div>
+    <div class="fg mb-16"><div class="fl2">Outcome / Result</div>
+      <input class="fi2" id="edit_outcome" value="${p.outcome||''}" placeholder="Overall outcome"/>
+    </div>
+    <div style="background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.2);border-radius:var(--r);padding:10px 12px;font-size:11px;color:var(--amber);margin-bottom:16px">
+      ⚠️ Editing will update the Google Sheet and log an audit trail with timestamp and editor ID.
+    </div>
+    <div style="display:flex;gap:10px">
+      <button onclick="saveEdit()" style="flex:1;padding:12px;background:var(--navy);color:#fff;border:none;border-radius:var(--r);font-family:var(--font2);font-weight:700;cursor:pointer;font-size:13px">💾 Save Changes</button>
+      <button onclick="closeEditModal()" style="flex:1;padding:12px;background:transparent;border:1.5px solid var(--bdr2);color:var(--txt2);border-radius:var(--r);font-family:var(--font2);font-weight:700;cursor:pointer;font-size:13px">Cancel</button>
+    </div>
+  `;
+  document.getElementById('editModal').classList.add('on');
+}
+function saveEdit() {
+  if (!editingSubKey || !currentUser) return;
+  const notes = document.getElementById('edit_notes')?.value || '';
+  const outcome = document.getElementById('edit_outcome')?.value || '';
+  const sub = submissions[currentUser.id][editingSubKey];
+  sub.payload.notes = notes;
+  sub.payload.agenda = notes;
+  sub.payload.outcomes_text = notes;
+  sub.payload.outcome = outcome;
+  sub.editedTs = new Date().toISOString();
+  sub.editedBy = currentUser.id;
+  saveToStorage();
+  // Write updated record to sheet
+  writeToSheet(sub.type, {...sub.payload, edited:'true', editedTs:sub.editedTs, editedBy:sub.editedBy});
+  closeEditModal();
+  renderHistory();
+  showToast('Submission updated successfully', 'success');
+}
+function closeEditModal() {
+  document.getElementById('editModal').classList.remove('on');
+  editingSubKey = null;
+}
+
+// —————————————————————————————————————————————
+// ADMIN DASHBOARD
+// —————————————————————————————————————————————
+function renderAdmin() {
+  if (!isAdmin) return;
+  // Deduplicate LEADERS by id (keep last occurrence)
+  const uniqueLeaders = Object.values(
+    LEADERS.reduce((acc,l) => { acc[l.id] = l; return acc; }, {})
+  );
+  let totalPlanned=0, totalDone=0, totalResponses=0;
+  let lastUpdatedTs = '';
+  uniqueLeaders.forEach(l => {
+    totalPlanned += l.plan;
+    const s = submissions[l.id] || {};
+    const cnt = Object.keys(s).length;
+    totalDone += cnt;
+    totalResponses += cnt;
+    Object.values(s).forEach(sub => {
+      if (sub.ts && sub.ts > lastUpdatedTs) lastUpdatedTs = sub.ts;
+    });
+  });
+
+  document.getElementById('ak_total').textContent = uniqueLeaders.length;
+  document.getElementById('ak_planned').textContent = totalPlanned;
+  document.getElementById('ak_done').textContent = totalDone;
+  document.getElementById('ak_avg').textContent = uniqueLeaders.length>0 ? Math.round(totalDone/uniqueLeaders.length*10)/10 : 0;
+  document.getElementById('ak_totalResponses').textContent = totalResponses;
+  document.getElementById('ak_lastUpdated').textContent = lastUpdatedTs ? new Date(lastUpdatedTs).toLocaleString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : 'No data yet';
+
+  renderAdminTable();
+  renderAdminCharts();
+}
+
+function renderAdminTable() {
+  const uniqueLeaders = Object.values(
+    LEADERS.reduce((acc,l) => { acc[l.id] = l; return acc; }, {})
+  );
+  const zf = document.getElementById('af_zone').value;
+  const rf = document.getElementById('af_role').value;
+  let filtered = uniqueLeaders.filter(l => {
+    if (zf && l.zone!==zf) return false;
+    if (rf && l.role!==rf) return false;
+    return true;
+  });
+
+  document.getElementById('af_count').textContent = `Showing ${filtered.length} leaders`;
+
+  const now = getToday();
+  const body = document.getElementById('adminTableBody');
+  body.innerHTML = filtered.map((l,i) => {
+    const subs = submissions[l.id] || {};
+    const done = Object.keys(subs).length;
+    const plan = TRAVEL_PLANS[l.id] || {};
+    let missed = 0;
+    Object.keys(plan).forEach(dk => {
+      const pd = parseDateKey(dk);
+      if (!subs[dk] && pd < new Date(now.getFullYear(),now.getMonth(),now.getDate())) missed++;
+    });
+    const pending = Math.max(0, l.plan - done - missed);
+    const pct = l.plan>0 ? Math.round(done/l.plan*100) : 0;
+    return `<tr>
+      <td style="color:var(--txt3)">${i+1}</td>
+      <td class="td-name">${l.name}</td>
+      <td><span class="role-badge ${l.role}">${l.role}</span></td>
+      <td>${l.zone}</td>
+      <td>${l.region}</td>
+      <td style="font-weight:700;color:var(--navy)">${l.plan}</td>
+      <td style="font-weight:700;color:var(--green)">${done}</td>
+      <td style="font-weight:700;color:var(--rose)">${missed}</td>
+      <td style="font-weight:700;color:var(--blue)">${pending}</td>
+      <td><div style="display:flex;align-items:center;gap:6px">
+        <div class="prog-bar"><div class="prog-fill ${pct<50?'low':pct<75?'mid':''}" style="width:${pct}%"></div></div>
+        <span style="font-size:11px;font-weight:700;color:var(--navy)">${pct}%</span>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderAdminCharts() {
+  const zones = ['North','RON','West','E&C','South'];
+  const zoneChart = document.getElementById('zoneChart');
+  zoneChart.innerHTML = zones.map(z => {
+    const leaders = LEADERS.filter(l=>l.zone===z);
+    const planned = leaders.reduce((s,l)=>s+l.plan,0);
+    const done = leaders.reduce((s,l)=>s+Object.keys(submissions[l.id]||{}).length,0);
+    const pct = planned>0?Math.round(done/planned*100):0;
+    return `<div class="bar-row">
+      <div class="bar-label">${z}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:var(--blue)"></div></div>
+      <div class="bar-val">${pct}%</div>
+    </div>`;
+  }).join('');
+
+  const roles = ['ZH','RH','SH','RM'];
+  const roleChart = document.getElementById('roleChart');
+  roleChart.innerHTML = roles.map(r => {
+    const leaders = LEADERS.filter(l=>l.role===r);
+    const planned = leaders.reduce((s,l)=>s+l.plan,0);
+    const done = leaders.reduce((s,l)=>s+Object.keys(submissions[l.id]||{}).length,0);
+    const pct = planned>0?Math.round(done/planned*100):0;
+    return `<div class="bar-row">
+      <div class="bar-label">${r}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:var(--purple)"></div></div>
+      <div class="bar-val">${pct}%</div>
+    </div>`;
+  }).join('');
+}
+
+// —————————————————————————————————————————————
+// VISIT DETAIL MODAL
+// —————————————————————————————————————————————
+function showVisitModal(dk, city, status) {
+  const sub = currentUser ? getSubmission(currentUser.id, dk) : null;
+  const d = parseDateKey(dk);
+  const statusLabels = {visited:'✓ Visited',missed:'⚠️ Missed',today:'📍 Today',planned:'📅 Planned'};
+
+  document.getElementById('modalTitle').textContent = `${city} · ${dk}`;
+  document.getElementById('modalBody').innerHTML = `
+    <div class="modal-detail-row"><span class="mdr-key">Date</span><span class="mdr-val">${d.toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</span></div>
+    <div class="modal-detail-row"><span class="mdr-key">City</span><span class="mdr-val">📍 ${city}</span></div>
+    <div class="modal-detail-row"><span class="mdr-key">Status</span><span class="mdr-val">${statusLabels[status]||status}</span></div>
+    ${sub ? `<div class="modal-detail-row"><span class="mdr-key">Submitted at</span><span class="mdr-val">${new Date(sub.ts).toLocaleString('en-IN')}</span></div>
+    <div class="modal-detail-row"><span class="mdr-key">Visit Type</span><span class="mdr-val">${{pm:'Partner Meet',tc:'Team Connect',im:'Insurer Meet'}[sub.type]}</span></div>` : ''}
+    ${status==='planned'||status==='today' ? `<div style="margin-top:14px"><button onclick="closeModal();navigate('report')" style="width:100%;padding:11px;background:var(--navy);color:#fff;border:none;border-radius:var(--r);font-family:var(--font2);font-weight:700;cursor:pointer">Submit Visit Report →</button></div>` : ''}
+  `;
+  document.getElementById('visitModal').classList.add('on');
+}
+function closeModal() { document.getElementById('visitModal').classList.remove('on'); }
+document.getElementById('visitModal').addEventListener('click', e => { if(e.target.id==='visitModal') closeModal(); });
+
+// —————————————————————————————————————————————
+// TOAST
+// —————————————————————————————————————————————
+let toastTimer;
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'show' + (type?' '+type:'');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.className='', 3500);
+}
+</script>
+</body>
+</html>
