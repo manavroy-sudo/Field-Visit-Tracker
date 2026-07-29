@@ -26,6 +26,9 @@ const TABS = {
   im: 'Insurer Meet Responses'
 };
 
+const LOGIN_TAB = 'Login Log';
+const LOGIN_HEADERS = ['timestamp', 'emp_id', 'emp_name', 'role', 'zone', 'region'];
+
 // Exact field names written/read for each visit type. Order defines column order.
 const HEADERS = {
   pm: ['submission_id','ts','emp_id','emp_name','designation','zone','region','planned_date','city',
@@ -56,6 +59,43 @@ function json_(obj) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
+function getLoginSheet_() {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  let sh = ss.getSheetByName(LOGIN_TAB);
+  if (!sh) sh = ss.insertSheet(LOGIN_TAB);
+  if (sh.getLastRow() === 0) sh.appendRow(LOGIN_HEADERS);
+  return sh;
+}
+
+function logLogin_(data) {
+  const sh = getLoginSheet_();
+  sh.appendRow([
+    data.timestamp || new Date().toISOString(),
+    data.emp_id || '',
+    data.emp_name || '',
+    data.role || '',
+    data.zone || '',
+    data.region || ''
+  ]);
+  return json_({ status: 'success' });
+}
+
+function getLogins_() {
+  const sh = getLoginSheet_();
+  const rows = sh.getDataRange().getValues();
+  const logins = [];
+  if (rows.length < 2) return logins;
+  const headers = rows[0];
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row[0]) continue;
+    const rec = {};
+    headers.forEach((h, idx) => { rec[h] = row[idx]; });
+    logins.push(rec);
+  }
+  return logins;
+}
+
 function doGet(e) {
   try {
     const key = (e.parameter && e.parameter.key) || '';
@@ -75,7 +115,7 @@ function doGet(e) {
         data[rec.submission_id] = rec;
       }
     });
-    return json_({ status: 'success', data: data });
+    return json_({ status: 'success', data: data, logins: getLogins_() });
   } catch (err) {
     return json_({ status: 'error', msg: err.toString() });
   }
@@ -85,6 +125,10 @@ function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
     if ((data.key || '') !== API_KEY) return json_({ status: 'error', msg: 'unauthorized' });
+
+    if (data.action === 'login') {
+      return logLogin_(data);
+    }
 
     const type = data.visit_type;
     if (!TABS[type]) return json_({ status: 'error', msg: 'invalid visit_type' });

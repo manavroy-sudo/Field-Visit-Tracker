@@ -1069,6 +1069,14 @@ table.admin-table{width:100%;border-collapse:collapse;font-size:12px;background:
             <div class="bar-chart" id="roleChart"></div>
           </div>
         </div>
+
+        <div class="card mb-20">
+          <div class="card-header"><div class="card-title">🔐 Recent Logins</div><div class="filter-count" id="loginLogCount">— events</div></div>
+          <div class="admin-table-wrap"><table class="admin-table">
+            <thead><tr><th>#</th><th>Timestamp</th><th>Name</th><th>Emp ID</th><th>Role</th><th>Zone</th><th>Region</th></tr></thead>
+            <tbody id="loginLogTableBody"></tbody>
+          </table></div>
+        </div>
       </div>
 
     </div><!-- end main-content -->
@@ -1232,6 +1240,7 @@ let isAdmin = false;
 let submissions = {}; // {empId: {dateKey: {type, data, ts}}}
 let currentFormTab = 'pm';
 let selectedPlanDate = {}; // per form type
+let loginLogs = []; // [{timestamp, emp_id, emp_name, role, zone, region}]
 
 // —————————————————————————————————————————————
 // INIT
@@ -1318,12 +1327,31 @@ async function fetchSubmissionsFromSheet() {
       };
     });
     submissions = rebuilt;
+    loginLogs = Array.isArray(result.logins) ? result.logins : [];
     saveToStorage();
     return true;
   } catch (err) {
     console.error('Sheet fetch failed', err);
     return false;
   }
+}
+
+function logLoginEvent(user) {
+  if (!sheetConfigured()) return;
+  fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({
+      key: APPS_SCRIPT_KEY,
+      action: 'login',
+      timestamp: new Date().toISOString(),
+      emp_id: user.id,
+      emp_name: user.name,
+      role: user.role,
+      zone: user.zone,
+      region: user.region
+    })
+  }).catch(err => console.error('Login log failed', err));
 }
 
 async function writeToSheet(type, payload) {
@@ -1359,6 +1387,7 @@ function doLogin() {
     currentUser = {id:'0001',name:'Central Admin',role:'Admin',zone:'All',region:'All',base:'HO',plan:0};
     isAdmin = true;
     localStorage.setItem('id_fvt_user', JSON.stringify(currentUser));
+    logLoginEvent(currentUser);
     showApp();
     return;
   }
@@ -1367,6 +1396,7 @@ function doLogin() {
   if (!emp) { showLoginErr('Employee ID not found. Check and try again, or contact Admin.'); return; }
   currentUser = emp; isAdmin = false;
   localStorage.setItem('id_fvt_user', JSON.stringify(emp));
+  logLoginEvent(emp);
   showApp();
 }
 function showLoginErr(msg) {
@@ -2230,6 +2260,31 @@ function renderAdmin() {
 
   renderAdminTable();
   renderAdminCharts();
+  renderLoginLog();
+}
+
+function renderLoginLog() {
+  const body = document.getElementById('loginLogTableBody');
+  const countEl = document.getElementById('loginLogCount');
+  if (!body) return;
+  const sorted = [...loginLogs].sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)));
+  countEl.textContent = `${sorted.length} events`;
+  if (!sorted.length) {
+    body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--txt3)">No logins recorded yet</td></tr>';
+    return;
+  }
+  body.innerHTML = sorted.map((l, i) => {
+    const when = l.timestamp ? new Date(l.timestamp).toLocaleString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '—';
+    return `<tr>
+      <td style="color:var(--txt3)">${i+1}</td>
+      <td>${when}</td>
+      <td class="td-name">${l.emp_name || '—'}</td>
+      <td>${l.emp_id || '—'}</td>
+      <td><span class="role-badge ${l.role||''}">${l.role || '—'}</span></td>
+      <td>${l.zone || '—'}</td>
+      <td>${l.region || '—'}</td>
+    </tr>`;
+  }).join('');
 }
 
 function renderAdminTable() {
