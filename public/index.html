@@ -1025,7 +1025,7 @@ table.admin-table{width:100%;border-collapse:collapse;font-size:12px;background:
               <div style="font-size:10px;color:rgba(255,255,255,.4)">Last Updated</div>
               <div style="font-size:12px;font-weight:600;color:#fff" id="ak_lastUpdated">—</div>
             </div>
-            <a href="https://docs.google.com/spreadsheets/d/1FOqhZIVN0dyqKLwea06t3EVDFKRD4LWXvt0_LFCRIqU" target="_blank" style="display:flex;align-items:center;gap:6px;background:var(--green);color:#fff;border-radius:var(--r);padding:8px 16px;font-family:var(--font2);font-weight:700;font-size:12px;text-decoration:none;white-space:nowrap">📂 Open Sheet →</a>
+            <a href="https://docs.google.com/spreadsheets/d/1hD_X7C8_A3E489H-fBCse76rG102OAPdrO9JXeplOnE" target="_blank" style="display:flex;align-items:center;gap:6px;background:var(--green);color:#fff;border-radius:var(--r);padding:8px 16px;font-family:var(--font2);font-weight:700;font-size:12px;text-decoration:none;white-space:nowrap">📂 Open Sheet →</a>
           </div>
         </div>
 
@@ -1193,49 +1193,14 @@ const TRAVEL_PLANS = {
   "1113":{"1-Aug":"Rangia","4-Aug":"Bongaigaon","5-Aug":"Dhubri","11-Aug":"Agartala","12-Aug":"Agartala","13-Aug":"Agartala","18-Aug":"Nagaon","19-Aug":"Hojai","25-Aug":"Dibrugarh","26-Aug":"Duliajan","27-Aug":"Tinsukia"}
 };
 
-// — Google Sheet ID (responses written here) ——————————————
-const SHEET_ID = '1FOqhZIVN0dyqKLwea06t3EVDFKRD4LWXvt0_LFCRIqU';
-// — Apps Script Web App URL ————————————————————————————————
-// SETUP STEPS:
-// 1. Open the Google Sheet: https://docs.google.com/spreadsheets/d/1FOqhZIVN0dyqKLwea06t3EVDFKRD4LWXvt0_LFCRIqU
-// 2. Extensions → Apps Script → Paste the doPost code below → Deploy as Web App
-// 3. Copy the Web App URL and replace 'YOUR_APPS_SCRIPT_URL_HERE' below
-//
-// — APPS SCRIPT CODE (paste in Extensions → Apps Script) ——————
-// function doPost(e) {
-//   try {
-//     var data = JSON.parse(e.postData.contents);
-//     var ss = SpreadsheetApp.openById('1FOqhZIVN0dyqKLwea06t3EVDFKRD4LWXvt0_LFCRIqU');
-//     var tabName = data.sheet_tab || 'Partner Meet Responses';
-//     var sheet = ss.getSheetByName(tabName);
-//     if (!sheet) sheet = ss.insertSheet(tabName);
-//     // Auto-create header row if empty
-//     if (sheet.getLastRow() === 0) {
-//       var pm_headers = ['Timestamp','Leader Name','Employee ID','Designation','Zone','Region','Planned Date','Visit City','Partner GID','Partner Name','Partner Contact','Existing/New','Potential Bucket','Partner Status','Purpose of Visit','Active Challenges','Business Trend','Leader Confidence','Inactive Reason','Motor LOB','Support Required','Overall Outcome','Notes'];
-//       var tc_headers = ['Timestamp','Leader Name','Employee ID','Designation','Zone','Region','Planned Date','Visit City','Visit Mode','Branch Name','Branch City','Meeting Type','Primary Objective','Team Size','Agenda','Action Items','Team Health','Biggest Challenge'];
-//       var im_headers = ['Timestamp','Leader Name','Employee ID','Designation','Zone','Region','Planned Date','Visit City','Insurer Name','Purpose','Key Discussion Areas','Key Outcomes','Overall Outcome'];
-//       if (tabName.indexOf('Partner')>-1) sheet.appendRow(pm_headers);
-//       else if (tabName.indexOf('Team')>-1) sheet.appendRow(tc_headers);
-//       else sheet.appendRow(im_headers);
-//     }
-//     var row = [];
-//     var type = data.visit_type;
-//     var ts = new Date().toLocaleString('en-IN');
-//     if (type === 'pm') {
-//       row = [ts,data.emp_name,data.emp_id,data.designation,data.zone,data.region,data.planned_date,data.city,data.partner_gid,data.partner_name,data.partner_contact,data.exist_new,data.bucket,data.status,data.purpose,data.active_challenges,data.trend,data.confidence,data.inactive_reason,data.lob,data.support,data.outcome,data.notes];
-//     } else if (type === 'tc') {
-//       row = [ts,data.emp_name,data.emp_id,data.designation,data.zone,data.region,data.planned_date,data.city,data.mode,data.branch,data.bcity,data.meet_type,data.objective,data.team_size,data.agenda,data.actions,data.health,data.challenge];
-//     } else if (type === 'im') {
-//       row = [ts,data.emp_name,data.emp_id,data.designation,data.zone,data.region,data.planned_date,data.city,data.insurer,data.purpose,data.discussion_areas,data.outcomes_text,data.outcome];
-//     }
-//     sheet.appendRow(row);
-//     return ContentService.createTextOutput(JSON.stringify({status:'success'})).setMimeType(ContentService.MimeType.JSON);
-//   } catch(err) {
-//     return ContentService.createTextOutput(JSON.stringify({status:'error',msg:err.toString()})).setMimeType(ContentService.MimeType.JSON);
-//   }
-// }
-// ————————————————————————————————————————————————————————————
+// — Google Sheet backend ————————————————————————————————————
+// The Sheet is the source of truth: it's read on login and written to on
+// every submit/edit. See apps-script/Code.gs for the server-side script —
+// deploy it as a Web App bound to this Sheet, then fill in the two
+// constants below with the deployment URL and the key you set in that file.
+const SHEET_ID = '1hD_X7C8_A3E489H-fBCse76rG102OAPdrO9JXeplOnE';
 const APPS_SCRIPT_URL = 'YOUR_APPS_SCRIPT_URL_HERE';
+const APPS_SCRIPT_KEY = 'CHANGE_ME_TO_A_RANDOM_STRING';
 // Sheet names for each form type
 const SHEET_TABS = {
   pm: 'Partner Meet Responses',
@@ -1326,6 +1291,58 @@ function saveToStorage() {
 }
 
 // —————————————————————————————————————————————
+// GOOGLE SHEET SYNC — Sheet is the source of truth; localStorage is a cache
+// —————————————————————————————————————————————
+function sheetConfigured() {
+  return APPS_SCRIPT_URL && APPS_SCRIPT_URL !== 'YOUR_APPS_SCRIPT_URL_HERE';
+}
+
+async function fetchSubmissionsFromSheet() {
+  if (!sheetConfigured()) return false;
+  try {
+    const res = await fetch(`${APPS_SCRIPT_URL}?key=${encodeURIComponent(APPS_SCRIPT_KEY)}`);
+    const result = await res.json();
+    if (result.status !== 'success') { console.error('Sheet read error', result.msg); return false; }
+    const rebuilt = {};
+    Object.entries(result.data).forEach(([subId, rec]) => {
+      const empId = String(rec.emp_id || '');
+      if (!empId) return;
+      if (!rebuilt[empId]) rebuilt[empId] = {};
+      rebuilt[empId][subId] = {
+        type: rec.type,
+        dk: rec.planned_date,
+        ts: rec.ts,
+        editedTs: rec.edited_ts || undefined,
+        editedBy: rec.edited_by || undefined,
+        payload: rec
+      };
+    });
+    submissions = rebuilt;
+    saveToStorage();
+    return true;
+  } catch (err) {
+    console.error('Sheet fetch failed', err);
+    return false;
+  }
+}
+
+async function writeToSheet(type, payload) {
+  if (!sheetConfigured()) return { status: 'skipped' };
+  try {
+    const body = { ...payload, key: APPS_SCRIPT_KEY };
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // avoids CORS preflight against Apps Script
+      body: JSON.stringify(body)
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('Sheet write failed', err);
+    return { status: 'error', msg: String(err) };
+  }
+}
+
+// —————————————————————————————————————————————
 // LOGIN
 // —————————————————————————————————————————————
 document.addEventListener('keydown', e => {
@@ -1367,11 +1384,18 @@ function doLogout() {
 // —————————————————————————————————————————————
 // SHOW APP
 // —————————————————————————————————————————————
-function showApp() {
+async function showApp() {
   document.getElementById('loginScreen').classList.remove('on');
   document.getElementById('app').classList.add('on');
   updateTopbar();
   updateSidebar();
+
+  if (sheetConfigured()) {
+    showToast('Syncing with Google Sheet…', '');
+    const ok = await fetchSubmissionsFromSheet();
+    if (ok) showToast('Synced', 'success');
+    else showToast('Could not reach Sheet — showing cached data', 'warn');
+  }
 
   if (isAdmin) {
     // Admin sees ONLY the central dashboard - hide leader nav items
@@ -1904,7 +1928,7 @@ function handlePhotos(input, previewId) {
 // sessionVisits stores visits added this session before final submit
 let sessionVisits = []; // [{type, payload, dk}]
 
-function submitForm(type) {
+async function submitForm(type) {
   if (!validateForm(type)) return;
   const btn = document.querySelector(`#form-${type} .btn-submit`);
   btn.disabled = true;
@@ -1914,32 +1938,24 @@ function submitForm(type) {
   const dk = selectedPlanDate[type]?.dk;
   // Use dateKey + timestamp for uniqueness (allows multiple per day)
   const subKey = dk + '_' + Date.now();
+  payload.submission_id = subKey;
 
-  // Save to local state
+  // Save to local state immediately for a responsive UI
   if (!submissions[currentUser.id]) submissions[currentUser.id] = {};
-  submissions[currentUser.id][subKey] = {type, payload, ts: new Date().toISOString(), dk};
+  submissions[currentUser.id][subKey] = {type, payload, ts: payload.ts, dk};
   saveToStorage();
 
-  // Write to Google Sheet via Apps Script
-  writeToSheet(type, payload);
+  // Write to Google Sheet via Apps Script (source of truth)
+  const result = await writeToSheet(type, payload);
 
-  setTimeout(() => {
-    btn.disabled = false;
-    btn.innerHTML = {pm:'Submit Partner Visit Report →',tc:'Submit Team Connect Report →',im:'Submit Insurer Meet Report →'}[type];
-    showSuccess(type, payload, dk);
-    buildPlanSelectors();
-  }, 900);
-}
+  btn.disabled = false;
+  btn.innerHTML = {pm:'Submit Partner Visit Report →',tc:'Submit Team Connect Report →',im:'Submit Insurer Meet Report →'}[type];
 
-function writeToSheet(type, payload) {
-  if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL_HERE') return;
-  const body = {sheet_tab: SHEET_TABS[type], sheet_id: SHEET_ID, ...payload};
-  fetch(APPS_SCRIPT_URL, {
-    method: 'POST',
-    mode: 'no-cors',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(body)
-  }).catch(() => {});
+  if (result.status === 'error') {
+    showToast('Saved locally, but Sheet write failed: ' + (result.msg || 'unknown error'), 'warn');
+  }
+  showSuccess(type, payload, dk);
+  buildPlanSelectors();
 }
 
 // Check if a specific planned date already has a submission (for plan selector badge)
@@ -2148,7 +2164,7 @@ function openEditModal(subKey) {
   `;
   document.getElementById('editModal').classList.add('on');
 }
-function saveEdit() {
+async function saveEdit() {
   if (!editingSubKey || !currentUser) return;
   const notes = document.getElementById('edit_notes')?.value || '';
   const outcome = document.getElementById('edit_outcome')?.value || '';
@@ -2160,11 +2176,23 @@ function saveEdit() {
   sub.editedTs = new Date().toISOString();
   sub.editedBy = currentUser.id;
   saveToStorage();
-  // Write updated record to sheet
-  writeToSheet(sub.type, {...sub.payload, edited:'true', editedTs:sub.editedTs, editedBy:sub.editedBy});
+
+  // Send the update to the Sheet (source of truth)
+  const result = await writeToSheet(sub.type, {
+    visit_type: sub.type,
+    action: 'edit',
+    submission_id: editingSubKey,
+    notes, agenda: notes, outcomes_text: notes, outcome,
+    edited_ts: sub.editedTs, edited_by: sub.editedBy
+  });
+
   closeEditModal();
   renderHistory();
-  showToast('Submission updated successfully', 'success');
+  if (result.status === 'error') {
+    showToast('Saved locally, but Sheet update failed: ' + (result.msg || 'unknown error'), 'warn');
+  } else {
+    showToast('Submission updated successfully', 'success');
+  }
 }
 function closeEditModal() {
   document.getElementById('editModal').classList.remove('on');
