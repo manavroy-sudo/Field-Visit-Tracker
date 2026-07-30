@@ -29,6 +29,11 @@ const TABS = {
 const LOGIN_TAB = 'Login Log';
 const LOGIN_HEADERS = ['timestamp', 'emp_id', 'emp_name', 'role', 'zone', 'region'];
 
+// Live roster + travel plan source — a separate sheet the leaders themselves edit.
+// Must be shared (at least Viewer) with whichever Google account this script is deployed as.
+const TRAVEL_SHEET_ID = '1wtvnrhCemuwEqHxO_dxhF9NEJ92M3BMV1Gy0zrrCDDg';
+const TRAVEL_TAB_NAME = "Aug'26";
+
 // Exact field names written/read for each visit type. Order defines column order.
 const HEADERS = {
   pm: ['submission_id','ts','emp_id','emp_name','designation','zone','region','planned_date','city',
@@ -96,6 +101,143 @@ function getLogins_() {
   return logins;
 }
 
+function normalizeName_(s) {
+  return String(s || '').toLowerCase().replace(/[. ]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Parses the live "M&H Travel Plan" sheet's Aug'26 tab. It's a manually-edited
+ * sheet with merged header cells and inconsistent columns, so this is defensive:
+ * it locates headers by text match rather than fixed column letters, and skips
+ * (rather than guesses on) any row it can't confidently map to an Employee ID.
+ */
+function findTravelSheet_(ss) {
+  let sh = ss.getSheetByName(TRAVEL_TAB_NAME);
+  if (sh) return sh;
+  // Tolerate apostrophe-character differences (straight vs curly quote) between
+  // what's typed here and what's actually in the live sheet's tab name.
+  const all = ss.getSheets();
+  for (let i = 0; i < all.length; i++) {
+    if (/^aug.?26$/i.test(all[i].getName().replace(/\s+/g, ''))) return all[i];
+  }
+  return null;
+}
+
+function dateCellToKey_(v, tz) {
+  if (v instanceof Date && !isNaN(v.getTime())) {
+    return Utilities.formatDate(v, tz, 'd-MMM');
+  }
+  const s = String(v || '').trim();
+  return /^\d{1,2}-[A-Za-z]{3}$/.test(s) ? s : null;
+}
+
+/**
+ * Parses the live "M&H Travel Plan" sheet's Aug'26 tab. It's a manually-edited
+ * sheet with merged header cells and inconsistent columns, so this is defensive:
+ * it locates headers by text match rather than fixed column letters, and skips
+ * (rather than guesses on) any row it can't confidently map to an Employee ID.
+ */
+function getTravelPlanData_() {
+  const ss = SpreadsheetApp.openById(TRAVEL_SHEET_ID);
+  const tz = ss.getSpreadsheetTimeZone();
+  const sh = findTravelSheet_(ss);
+  if (!sh) return { roster: [], plans: {} };
+  const values = sh.getDataRange().getValues();
+
+  let headerRow = -1, nameCol = -1;
+  for (let r = 0; r < values.length; r++) {
+    const idIdx = values[r].indexOf('Employee ID');
+    const nameIdx = values[r].indexOf('Full Name');
+    if (idIdx > -1 && nameIdx > -1) { headerRow = r; nameCol = nameIdx; break; }
+  }
+  if (headerRow === -1) return { roster: [], plans: {} };
+
+  const header = values[headerRow];
+  const baseCol = header.indexOf('Base Location');
+  const roleCol = header.indexOf('Role');
+  const zoneCol = header.indexOf('Zone');
+  const regionCol = header.indexOf('Region');
+  const planCountCol = header.indexOf('Plan');
+
+  // The "Plan" / "Actual" section markers (marking where each date-column
+  // block starts) sit a row or two above the header, depending on how many
+  // merged label rows precede it — search a small window rather than assume one.
+  let planBlockStart = -1, actualBlockStart = -1;
+  for (let back = 1; back <= 3 && (planBlockStart === -1 || actualBlockStart === -1); back++) {
+    const row = values[headerRow - back] || [];
+    if (planBlockStart === -1) planBlockStart = row.indexOf('Plan');
+    if (actualBlockStart === -1) actualBlockStart = row.indexOf('Actual');
+  }
+  if (planBlockStart === -1) planBlockStart = planCountCol;
+  if (actualBlockStart === -1) actualBlockStart = header.length;
+
+  const dateColKeys = {};
+  const dateColIdx = [];
+  for (let c = 0; c < header.length; c++) {
+    const key = dateCellToKey_(header[c], tz);
+    if (key) { dateColIdx.push(c); dateColKeys[c] = key; }
+  }
+  const planDateCols = dateColIdx.filter(c => c >= planBlockStart && c < actualBlockStart);
+
+  // Fallback name->id map from the small roster table elsewhere in the sheet,
+  // for rows where the Employee ID column is missing/shifted.
+  const nameToId = {};
+  for (let r = 0; r < values.length; r++) {
+    if (values[r][0] === 'Full Name' && values[r][1] === 'Employee Id') {
+      for (let rr = r + 1; rr < values.length; rr++) {
+        const nm = values[rr][0], id = values[rr][1];
+        if (!nm) break;
+        nameToId[normalizeName_(nm)] = String(id).trim();
+      }
+      break;
+    }
+  }
+
+  const idPattern = /^\d{3,10}$/;
+  const roster = [];
+  const plans = {};
+  const skipped = [];
+
+  for (let r = headerRow + 1; r < values.length; r++) {
+    const row = values[r];
+    const name = String(row[nameCol] || '').trim();
+    if (!name) continue;
+
+    // Some rows have a stray extra ID-like value ahead of the real one (a data
+    // entry artifact in the source sheet) — the value closest to the name
+    // column is reliably the correct Employee ID, so keep overwriting rather
+    // than stopping at the first match.
+    let empId = '';
+    for (let c = 0; c <= nameCol; c++) {
+      const v = String(row[c] || '').trim();
+      if (idPattern.test(v)) empId = v;
+    }
+    if (!empId) empId = nameToId[normalizeName_(name)] || '';
+    if (!empId) { skipped.push(name); continue; }
+
+    roster.push({
+      id: empId,
+      name: name,
+      role: String(row[roleCol] || '').trim(),
+      zone: String(row[zoneCol] || '').trim(),
+      region: String(row[regionCol] || '').trim(),
+      base: String(row[baseCol] || '').trim(),
+      plan: Number(row[planCountCol]) || 0
+    });
+
+    const dayMap = {};
+    planDateCols.forEach(c => {
+      const val = String(row[c] || '').trim();
+      if (val && !/^no travel$/i.test(val) && !/^leave$/i.test(val)) {
+        dayMap[dateColKeys[c]] = val;
+      }
+    });
+    plans[empId] = dayMap;
+  }
+
+  return { roster: roster, plans: plans, skipped: skipped };
+}
+
 function doGet(e) {
   try {
     const key = (e.parameter && e.parameter.key) || '';
@@ -115,7 +257,22 @@ function doGet(e) {
         data[rec.submission_id] = rec;
       }
     });
-    return json_({ status: 'success', data: data, logins: getLogins_() });
+    let travel = { roster: [], plans: {}, skipped: [] };
+    try {
+      travel = getTravelPlanData_();
+    } catch (travelErr) {
+      travel.error = travelErr.toString();
+    }
+
+    return json_({
+      status: 'success',
+      data: data,
+      logins: getLogins_(),
+      roster: travel.roster,
+      plans: travel.plans,
+      travel_skipped: travel.skipped || [],
+      travel_error: travel.error || ''
+    });
   } catch (err) {
     return json_({ status: 'error', msg: err.toString() });
   }

@@ -1241,6 +1241,15 @@ let submissions = {}; // {empId: {dateKey: {type, data, ts}}}
 let currentFormTab = 'pm';
 let selectedPlanDate = {}; // per form type
 let loginLogs = []; // [{timestamp, emp_id, emp_name, role, zone, region}]
+let LIVE_LEADERS = null; // live roster from the M&H Travel Plan sheet, once fetched
+let LIVE_TRAVEL_PLANS = null; // live {empId: {dateKey: city}}, once fetched
+
+function getLeadersList() {
+  return (LIVE_LEADERS && LIVE_LEADERS.length) ? LIVE_LEADERS : LEADERS;
+}
+function getTravelPlansMap() {
+  return (LIVE_TRAVEL_PLANS && Object.keys(LIVE_TRAVEL_PLANS).length) ? LIVE_TRAVEL_PLANS : TRAVEL_PLANS;
+}
 
 // —————————————————————————————————————————————
 // INIT
@@ -1328,6 +1337,12 @@ async function fetchSubmissionsFromSheet() {
     });
     submissions = rebuilt;
     loginLogs = Array.isArray(result.logins) ? result.logins : [];
+    if (Array.isArray(result.roster) && result.roster.length) LIVE_LEADERS = result.roster;
+    if (result.plans && Object.keys(result.plans).length) LIVE_TRAVEL_PLANS = result.plans;
+    if (result.travel_error) console.error('Travel plan sheet error:', result.travel_error);
+    if (Array.isArray(result.travel_skipped) && result.travel_skipped.length) {
+      console.warn('Travel plan rows skipped (no matching Employee ID):', result.travel_skipped);
+    }
     saveToStorage();
     return true;
   } catch (err) {
@@ -1377,7 +1392,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && document.getElementById('loginScreen').classList.contains('on')) doLogin();
 });
 
-function doLogin() {
+async function doLogin() {
   const rawId = document.getElementById('empIdInput').value.trim();
   const err = document.getElementById('loginErr');
   err.classList.remove('on');
@@ -1392,7 +1407,17 @@ function doLogin() {
     return;
   }
 
-  const emp = LEADERS.find(e => e.id === rawId || e.id === rawId.replace(/\.0*$/,''));
+  // Pull the freshest roster before checking the ID, so leaders whose details
+  // just changed in the Travel Plan sheet aren't blocked by stale local data.
+  const btn = document.querySelector('.btn-login');
+  const originalLabel = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<div class="sp-spin" style="width:16px;height:16px;border-width:2px;border-color:rgba(255,255,255,.3);border-top-color:#fff;display:inline-block;vertical-align:middle"></div> Checking…';
+  if (sheetConfigured()) await fetchSubmissionsFromSheet();
+  btn.disabled = false;
+  btn.innerHTML = originalLabel;
+
+  const emp = getLeadersList().find(e => e.id === rawId || e.id === rawId.replace(/\.0*$/,''));
   if (!emp) { showLoginErr('Employee ID not found. Check and try again, or contact Admin.'); return; }
   currentUser = emp; isAdmin = false;
   localStorage.setItem('id_fvt_user', JSON.stringify(emp));
@@ -1524,7 +1549,7 @@ function getWeekDates() {
 
 function getMyPlan() {
   if (!currentUser || isAdmin) return {};
-  return TRAVEL_PLANS[currentUser.id] || {};
+  return getTravelPlansMap()[currentUser.id] || {};
 }
 
 function getSubmission(empId, dk) {
@@ -2234,9 +2259,9 @@ function closeEditModal() {
 // —————————————————————————————————————————————
 function renderAdmin() {
   if (!isAdmin) return;
-  // Deduplicate LEADERS by id (keep last occurrence)
+  // Deduplicate by id (keep last occurrence)
   const uniqueLeaders = Object.values(
-    LEADERS.reduce((acc,l) => { acc[l.id] = l; return acc; }, {})
+    getLeadersList().reduce((acc,l) => { acc[l.id] = l; return acc; }, {})
   );
   let totalPlanned=0, totalDone=0, totalResponses=0;
   let lastUpdatedTs = '';
@@ -2289,7 +2314,7 @@ function renderLoginLog() {
 
 function renderAdminTable() {
   const uniqueLeaders = Object.values(
-    LEADERS.reduce((acc,l) => { acc[l.id] = l; return acc; }, {})
+    getLeadersList().reduce((acc,l) => { acc[l.id] = l; return acc; }, {})
   );
   const zf = document.getElementById('af_zone').value;
   const rf = document.getElementById('af_role').value;
@@ -2306,7 +2331,7 @@ function renderAdminTable() {
   body.innerHTML = filtered.map((l,i) => {
     const subs = submissions[l.id] || {};
     const done = Object.keys(subs).length;
-    const plan = TRAVEL_PLANS[l.id] || {};
+    const plan = getTravelPlansMap()[l.id] || {};
     let missed = 0;
     Object.keys(plan).forEach(dk => {
       const pd = parseDateKey(dk);
@@ -2336,7 +2361,7 @@ function renderAdminCharts() {
   const zones = ['North','RON','West','E&C','South'];
   const zoneChart = document.getElementById('zoneChart');
   zoneChart.innerHTML = zones.map(z => {
-    const leaders = LEADERS.filter(l=>l.zone===z);
+    const leaders = getLeadersList().filter(l=>l.zone===z);
     const planned = leaders.reduce((s,l)=>s+l.plan,0);
     const done = leaders.reduce((s,l)=>s+Object.keys(submissions[l.id]||{}).length,0);
     const pct = planned>0?Math.round(done/planned*100):0;
@@ -2350,7 +2375,7 @@ function renderAdminCharts() {
   const roles = ['ZH','RH','SH','RM'];
   const roleChart = document.getElementById('roleChart');
   roleChart.innerHTML = roles.map(r => {
-    const leaders = LEADERS.filter(l=>l.role===r);
+    const leaders = getLeadersList().filter(l=>l.role===r);
     const planned = leaders.reduce((s,l)=>s+l.plan,0);
     const done = leaders.reduce((s,l)=>s+Object.keys(submissions[l.id]||{}).length,0);
     const pct = planned>0?Math.round(done/planned*100):0;
