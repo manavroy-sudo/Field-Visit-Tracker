@@ -165,7 +165,7 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
 .cal-leg-dot{width:8px;height:8px;border-radius:50%}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr)}
 .cal-dow{text-align:center;padding:10px 4px;font-size:10px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.05em;background:var(--surf2);border-bottom:1px solid var(--bdr)}
-.cal-day{min-height:72px;padding:6px;border-right:1px solid var(--bdr);border-bottom:1px solid var(--bdr);position:relative;transition:background .15s;cursor:default}
+.cal-day{min-height:88px;padding:6px;border-right:1px solid var(--bdr);border-bottom:1px solid var(--bdr);position:relative;transition:background .15s;cursor:default}
 .cal-day:nth-child(7n){border-right:none}
 .cal-day:hover{background:var(--surf2)}
 .cal-day.other-month{background:var(--surf3)}
@@ -173,7 +173,7 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
 .cal-day.today .day-num{background:var(--navy);color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center}
 .cal-day.has-visit{cursor:pointer}
 .day-num{font-size:11px;font-weight:700;color:var(--txt2);width:22px;height:22px;display:flex;align-items:center;justify-content:center;margin-bottom:3px}
-.day-dot{font-size:9px;font-weight:600;padding:1px 5px;border-radius:4px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.day-dot{font-size:9px;font-weight:600;padding:1px 5px;border-radius:4px;margin-top:2px;white-space:normal;word-break:break-word;line-height:1.25;max-width:100%}
 .day-dot.pm{background:var(--pm-s);color:var(--pm-c)}
 .day-dot.tc{background:var(--tc-s);color:var(--tc-c)}
 .day-dot.im{background:var(--im-s);color:var(--im-c)}
@@ -260,6 +260,8 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
 .pi-status.done{background:var(--green-s);color:var(--green)}
 .pi-status.open{background:var(--blue-s);color:var(--blue)}
 .pi-status.missed{background:var(--rose-s);color:var(--rose)}
+.pi-add-another{margin-left:8px;flex-shrink:0;background:var(--navy);color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:10px;font-weight:700;cursor:pointer;font-family:var(--font2);transition:opacity .18s}
+.pi-add-another:hover{opacity:.85}
 
 /* Cond block */
 .cond-block{display:none;border-left:3px solid var(--navy3);padding-left:16px;margin-left:4px;margin-top:8px;flex-direction:column;gap:14px}
@@ -415,7 +417,6 @@ table.admin-table{width:100%;border-collapse:collapse;font-size:12px;background:
       <div class="lc-rule">Travel mandatory: Tuesdays, Wednesdays & Thursdays</div>
       <div class="lc-rule">Local/base-location travel excluded from compliance</div>
       <div class="lc-rule">ZHs and SH/RH/RGM must not travel to same city same day</div>
-      <div class="lc-rule">Google Form submission mandatory for every visit</div>
     </div>
     <div>
       <div class="fl" style="margin-bottom:5px">Employee ID</div>
@@ -672,19 +673,20 @@ table.admin-table{width:100%;border-collapse:collapse;font-size:12px;background:
               <div class="cond-block" id="cond_active">
                 <div class="cond-label">Active Partner</div>
                 <div class="fg mb-16">
-                  <div class="fl2">Key challenges limiting business growth? (Select all that apply)</div>
+                  <div class="fl2">What is preventing the partner from growing faster? (Select all that apply)</div>
                   <div class="check-group" id="pm_challenges">
                     <label class="check-opt"><input type="checkbox" value="No Major Issues"> No Major Issues</label>
                     <label class="check-opt"><input type="checkbox" value="Low Customer Demand"> Low Customer Demand</label>
-                    <label class="check-opt"><input type="checkbox" value="Pricing / Commission"> Pricing / Commission</label>
+                    <label class="check-opt"><input type="checkbox" value="Pricing / Commission Issues"> Pricing / Commission Issues</label>
                     <label class="check-opt"><input type="checkbox" value="Product Knowledge Gap"> Product Knowledge Gap</label>
-                    <label class="check-opt"><input type="checkbox" value="Partner Bandwidth"> Partner Bandwidth</label>
-                    <label class="check-opt"><input type="checkbox" value="App / Platform Issues"> App / Platform Issues</label>
+                    <label class="check-opt"><input type="checkbox" value="Partner Availability / Bandwidth"> Partner Availability / Bandwidth</label>
+                    <label class="check-opt"><input type="checkbox" value="App / Platform Technical Issues"> App / Platform Technical Issues</label>
                     <label class="check-opt"><input type="checkbox" value="RM Dependency"> RM Dependency</label>
-                    <label class="check-opt"><input type="checkbox" value="Payout Issues"> Payout Issues</label>
-                    <label class="check-opt"><input type="checkbox" value="Claim Experience"> Claim Experience</label>
-                    <label class="check-opt"><input type="checkbox" value="Policy Issuance Delay"> Policy Issuance Delay</label>
-                    <label class="check-opt"><input type="checkbox" value="Competitor Offering Better Terms"> Competitor Offering Better Terms</label>
+                    <label class="check-opt"><input type="checkbox" value="Payout Delays"> Payout Delays</label>
+                    <label class="check-opt"><input type="checkbox" value="Claims Experience"> Claims Experience</label>
+                    <label class="check-opt"><input type="checkbox" value="Policy Issuance Delays"> Policy Issuance Delays</label>
+                    <label class="check-opt"><input type="checkbox" value="Competitor Offering Better Pricing"> Competitor Offering Better Pricing</label>
+                    <label class="check-opt"><input type="checkbox" value="Limited Product Portfolio"> Limited Product Portfolio</label>
                     <label class="check-opt" onclick="toggleChallengeOther()"><input type="checkbox" value="Other"> Other</label>
                   </div>
                   <div class="cond-block" id="cond_challengeOther" style="margin-top:8px">
@@ -777,17 +779,8 @@ table.admin-table{width:100%;border-collapse:collapse;font-size:12px;background:
             </div>
           </div>
 
-          <div class="form-card">
-            <div class="form-section-header">✅ Compliance</div>
-            <div class="form-body">
-              <div class="compliance-check">
-                <label class="cc-row"><input type="checkbox" id="pm_formCheck"/>I confirm I have submitted the mandatory Google Form for this visit.</label>
-              </div>
-            </div>
-          </div>
-          <div style="display:flex;gap:10px;margin-bottom:24px">
-            <button class="btn-submit" style="flex:2" onclick="submitForm('pm')">✓ Submit Visit Report →</button>
-            <button onclick="resetFormAndAddAnother('pm')" style="flex:1;padding:14px;background:transparent;border:2px solid var(--navy);color:var(--navy);border-radius:var(--r);font-family:var(--font2);font-weight:700;font-size:13px;cursor:pointer;transition:all .2s" onmouseover="this.style.background='var(--navy)';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='var(--navy)'">+ Add Another Visit</button>
+          <div style="margin-bottom:24px">
+            <button class="btn-submit" onclick="submitForm('pm')">✓ Submit Visit Report →</button>
           </div>
         </div>
 
@@ -887,15 +880,8 @@ table.admin-table{width:100%;border-collapse:collapse;font-size:12px;background:
 
             </div>
           </div>
-          <div class="form-card">
-            <div class="form-section-header">✅ Compliance</div>
-            <div class="form-body">
-              <div class="compliance-check"><label class="cc-row"><input type="checkbox" id="tc_formCheck"/>I confirm I have submitted the mandatory Google Form for this visit.</label></div>
-            </div>
-          </div>
-          <div style="display:flex;gap:10px;margin-bottom:24px">
-            <button class="btn-submit" style="flex:2" onclick="submitForm('tc')">✓ Submit Team Connect Report →</button>
-            <button onclick="resetFormAndAddAnother('tc')" style="flex:1;padding:14px;background:transparent;border:2px solid var(--tc-c);color:var(--tc-c);border-radius:var(--r);font-family:var(--font2);font-weight:700;font-size:13px;cursor:pointer">+ Add Another</button>
+          <div style="margin-bottom:24px">
+            <button class="btn-submit" onclick="submitForm('tc')">✓ Submit Team Connect Report →</button>
           </div>
         </div>
 
@@ -930,11 +916,14 @@ table.admin-table{width:100%;border-collapse:collapse;font-size:12px;background:
               <div class="fg mb-16"><div class="fl2">Insurer Name <span class="req">*</span></div>
                 <select class="fsel" id="im_insurer" onchange="toggleOtherInsurer()">
                   <option value="">— Select insurer —</option>
-                  <option>Bajaj Allianz</option><option>HDFC ERGO</option><option>ICICI Lombard</option>
-                  <option>New India Assurance</option><option>Oriental Insurance</option><option>National Insurance</option>
-                  <option>United India Insurance</option><option>Reliance General</option><option>SBI General</option>
-                  <option>Tata AIG</option><option>Acko</option><option>Zuno</option><option>Go Digit</option>
-                  <option>Niva Bupa</option><option>Royal Sundaram</option><option>Future Generali</option><option>Other</option>
+                  <option>United</option><option>SBI</option><option>Reliance</option><option>Royal</option>
+                  <option>Shriram</option><option>National</option><option>ICICI</option><option>Bajaj</option>
+                  <option>Digit</option><option>NewIndia</option><option>Liberty</option><option>Universal</option>
+                  <option>HDFC</option><option>Magma</option><option>Chola</option><option>Oriental</option>
+                  <option>Zuno</option><option>IFFCO</option><option>Future</option><option>Kotak</option>
+                  <option>Tata</option><option>Raheja</option><option>Acko</option><option>AdityaBirla</option>
+                  <option>CareHealth</option><option>Cigna</option><option>NivaBupa</option><option>StarHealth</option>
+                  <option>Other</option>
                 </select>
               </div>
               <div class="cond-block" id="cond_otherInsurer">
@@ -976,15 +965,8 @@ table.admin-table{width:100%;border-collapse:collapse;font-size:12px;background:
 
             </div>
           </div>
-          <div class="form-card">
-            <div class="form-section-header">✅ Compliance</div>
-            <div class="form-body">
-              <div class="compliance-check"><label class="cc-row"><input type="checkbox" id="im_formCheck"/>I confirm I have submitted the mandatory Google Form for this visit.</label></div>
-            </div>
-          </div>
-          <div style="display:flex;gap:10px;margin-bottom:24px">
-            <button class="btn-submit" style="flex:2" onclick="submitForm('im')">✓ Submit Insurer Meet Report →</button>
-            <button onclick="resetFormAndAddAnother('im')" style="flex:1;padding:14px;background:transparent;border:2px solid var(--im-c);color:var(--im-c);border-radius:var(--r);font-family:var(--font2);font-weight:700;font-size:13px;cursor:pointer">+ Add Another</button>
+          <div style="margin-bottom:24px">
+            <button class="btn-submit" onclick="submitForm('im')">✓ Submit Insurer Meet Report →</button>
           </div>
         </div>
       </div>
@@ -1053,7 +1035,7 @@ table.admin-table{width:100%;border-collapse:collapse;font-size:12px;background:
           <div class="admin-table-wrap"><table class="admin-table">
             <thead><tr>
               <th>#</th><th>Name</th><th>Role</th><th>Zone</th><th>Region</th>
-              <th>Planned</th><th>Completed</th><th>Missed</th><th>Pending</th><th>Progress</th>
+              <th>Planned</th><th>Completed</th><th>Partner Meets</th><th>Team Meets</th><th>Insurer Meets</th><th>Missed</th><th>Pending</th><th>Progress</th>
             </tr></thead>
             <tbody id="adminTableBody"></tbody>
           </table></div>
@@ -1413,7 +1395,7 @@ async function doLogin() {
   const originalLabel = btn.innerHTML;
   btn.disabled = true;
   btn.innerHTML = '<div class="sp-spin" style="width:16px;height:16px;border-width:2px;border-color:rgba(255,255,255,.3);border-top-color:#fff;display:inline-block;vertical-align:middle"></div> Checking…';
-  if (sheetConfigured()) await fetchSubmissionsFromSheet();
+  const fetched = sheetConfigured() ? await fetchSubmissionsFromSheet() : false;
   btn.disabled = false;
   btn.innerHTML = originalLabel;
 
@@ -1422,7 +1404,7 @@ async function doLogin() {
   currentUser = emp; isAdmin = false;
   localStorage.setItem('id_fvt_user', JSON.stringify(emp));
   logLoginEvent(emp);
-  showApp();
+  showApp(fetched); // data's already fresh — skip showApp's own redundant fetch
 }
 function showLoginErr(msg) {
   const e = document.getElementById('loginErr');
@@ -1439,13 +1421,13 @@ function doLogout() {
 // —————————————————————————————————————————————
 // SHOW APP
 // —————————————————————————————————————————————
-async function showApp() {
+async function showApp(skipInitialFetch) {
   document.getElementById('loginScreen').classList.remove('on');
   document.getElementById('app').classList.add('on');
   updateTopbar();
   updateSidebar();
 
-  if (sheetConfigured()) {
+  if (sheetConfigured() && !skipInitialFetch) {
     showToast('Syncing with Google Sheet…', '');
     const ok = await fetchSubmissionsFromSheet();
     if (ok) showToast('Synced', 'success');
@@ -1658,7 +1640,7 @@ function renderMiniCalendar(plan) {
     html += `<div style="text-align:center;padding:4px 2px;border-radius:6px;background:${bg};cursor:${city?'pointer':'default'}"
       onclick="${city?`showVisitModal('${dk}','${city}','${status}')`:''}">
       <div style="font-size:11px;font-weight:${isToday?800:500};color:${color}">${d}</div>
-      ${city ? `<div style="font-size:7px;color:${color};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:28px;margin:0 auto">${city.substring(0,4)}</div>` : ''}
+      ${city ? `<div title="${city}" style="font-size:6.5px;line-height:1.15;color:${color};white-space:normal;word-break:break-word;max-width:100%;margin:0 auto">${city}</div>` : ''}
     </div>`;
   });
   html += '</div>';
@@ -1818,6 +1800,7 @@ function buildPlanSelectors() {
       sel.innerHTML = '<div style="padding:14px;color:var(--txt3);font-size:12px;text-align:center">No planned visits found for August 2026</div>';
       return;
     }
+    const unitLabel = {pm:'partner visit', tc:'team meet', im:'insurer meet'}[formType];
     sel.innerHTML = sorted.map(dk => {
       const city = plan[dk];
       const existingSubs = getPlanSubmissions(currentUser.id, dk);
@@ -1825,12 +1808,16 @@ function buildPlanSelectors() {
       const status = getVisitStatus(dk);
       // Allow multiple submissions — show count badge if already submitted
       const stClass = subCount > 0 ? 'done' : (status==='missed' ? 'missed' : 'open');
-      const stTxt = subCount > 0 ? `✓ ${subCount} submitted` : (status==='missed' ? 'Missed' : 'Open');
+      const stTxt = subCount > 0 ? `✓ ${subCount} ${unitLabel}${subCount>1?'s':''} logged` : (status==='missed' ? 'Missed' : 'Open');
+      const addAnotherBtn = subCount > 0
+        ? `<button type="button" class="pi-add-another" onclick="event.stopPropagation();addAnotherForDate('${formType}','${dk}','${city}')" title="Log another ${unitLabel} for this day">+ Add Another</button>`
+        : '';
       return `<label class="plan-item" onclick="selectPlanDate('${formType}','${dk}','${city}')">
         <input type="radio" name="${formType}_plan" value="${dk}">
         <div class="pi-date">${dk}</div>
         <div class="pi-city">📍 ${city}</div>
         <div class="pi-status ${stClass}">${stTxt}</div>
+        ${addAnotherBtn}
       </label>`;
     }).join('');
   });
@@ -1859,8 +1846,8 @@ function selectPlanDate(formType, dk, city) {
   if (selected) selected.closest('.plan-item').classList.add('selected-plan');
 }
 
-function resetFormAndAddAnother(type) {
-  // Clear form fields but stay on same tab
+function clearFormFields(type) {
+  // Clear detail fields but leave the plan/date selection alone
   const fields = {
     pm: ['pm_gid','pm_pname','pm_contact','pm_notes'],
     tc: ['tc_size','tc_agenda','tc_actions','tc_challengeOther','tc_branch','tc_bcity'],
@@ -1889,18 +1876,16 @@ function resetFormAndAddAnother(type) {
   document.querySelectorAll('input[name="pm_lob"]').forEach(cb => { cb.checked = false; const p = cb.closest('.check-opt'); if(p) p.classList.remove('selected'); });
   document.querySelectorAll(`#form-${type} input[type=radio]`).forEach(rb => { rb.checked = false; const p = rb.closest('.radio-opt'); if(p) p.classList.remove('selected'); });
   document.querySelectorAll(`#form-${type} .cond-block`).forEach(el => el.classList.remove('on'));
-  // Reset plan selection
-  selectedPlanDate[type] = null;
-  document.querySelectorAll(`#${type}_planSelector .plan-item`).forEach(el => el.classList.remove('selected-plan'));
-  document.querySelectorAll(`#${type}_planSelector input[type=radio]`).forEach(rb => rb.checked = false);
-  if (type==='pm') {
-    const prev = document.getElementById('pm_selectedPreview');
-    if (prev) prev.style.display = 'none';
-  }
-  // Scroll to top of form
+}
+
+// Log a second (or further) visit for a day that already has a submission —
+// keeps that day/city selected, just clears the detail fields to fill in fresh.
+function addAnotherForDate(formType, dk, city) {
+  clearFormFields(formType);
+  selectPlanDate(formType, dk, city);
   document.getElementById('view-report').scrollTo({top:0,behavior:'smooth'});
   document.getElementById('mainContent').scrollTo({top:0,behavior:'smooth'});
-  showToast('Form cleared. Select another planned visit to continue.', 'success');
+  showToast(`Ready to log another ${({pm:'partner visit',tc:'team meet',im:'insurer meet'})[formType]} for ${dk}`, 'success');
 }
 
 // —————————————————————————————————————————————
@@ -2040,10 +2025,6 @@ function validateForm(type) {
     if (!lobChecked) { showToast('Please select at least one Line of Business (LOB)', 'error'); return false; }
   }
 
-  // Compliance check
-  const checkMap = {pm:'pm_formCheck',tc:'tc_formCheck',im:'im_formCheck'};
-  if (!document.getElementById(checkMap[type]).checked) { showToast('Please confirm Google Form submission', 'error'); return false; }
-
   // Multiple visits allowed per day — no duplicate block
 
   return true;
@@ -2110,7 +2091,9 @@ function buildPayload(type) {
 // —————————————————————————————————————————————
 // SUCCESS SCREEN
 // —————————————————————————————————————————————
+let lastSubmission = null; // {type, dk, city} — for the "Log Another Visit" success-screen action
 function showSuccess(type, payload, dk) {
+  lastSubmission = {type, dk, city: payload.city};
   const labels = {pm:'Partner Meet',tc:'Team Connect',im:'Insurer Meet'};
   document.getElementById('successMeta').innerHTML = [
     {k:'Visit Type',v:labels[type]},{k:'Date',v:dk},{k:'City',v:payload.city},
@@ -2121,6 +2104,10 @@ function showSuccess(type, payload, dk) {
 function submitAnother() {
   document.getElementById('successScreen').classList.remove('on');
   navigate('report');
+  if (lastSubmission) {
+    switchFormTab(lastSubmission.type);
+    addAnotherForDate(lastSubmission.type, lastSubmission.dk, lastSubmission.city);
+  }
 }
 function goHome() {
   document.getElementById('successScreen').classList.remove('on');
@@ -2330,12 +2317,17 @@ function renderAdminTable() {
   const body = document.getElementById('adminTableBody');
   body.innerHTML = filtered.map((l,i) => {
     const subs = submissions[l.id] || {};
-    const done = Object.keys(subs).length;
+    const subList = Object.values(subs);
+    const done = subList.length;
+    const pmCount = subList.filter(s=>s.type==='pm').length;
+    const tcCount = subList.filter(s=>s.type==='tc').length;
+    const imCount = subList.filter(s=>s.type==='im').length;
     const plan = getTravelPlansMap()[l.id] || {};
     let missed = 0;
     Object.keys(plan).forEach(dk => {
       const pd = parseDateKey(dk);
-      if (!subs[dk] && pd < new Date(now.getFullYear(),now.getMonth(),now.getDate())) missed++;
+      const hasSub = subList.some(s => s.dk === dk);
+      if (!hasSub && pd < new Date(now.getFullYear(),now.getMonth(),now.getDate())) missed++;
     });
     const pending = Math.max(0, l.plan - done - missed);
     const pct = l.plan>0 ? Math.round(done/l.plan*100) : 0;
@@ -2347,6 +2339,9 @@ function renderAdminTable() {
       <td>${l.region}</td>
       <td style="font-weight:700;color:var(--navy)">${l.plan}</td>
       <td style="font-weight:700;color:var(--green)">${done}</td>
+      <td style="font-weight:600;color:var(--pm-c)">${pmCount}</td>
+      <td style="font-weight:600;color:var(--tc-c)">${tcCount}</td>
+      <td style="font-weight:600;color:var(--im-c)">${imCount}</td>
       <td style="font-weight:700;color:var(--rose)">${missed}</td>
       <td style="font-weight:700;color:var(--blue)">${pending}</td>
       <td><div style="display:flex;align-items:center;gap:6px">

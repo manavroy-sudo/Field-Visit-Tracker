@@ -310,8 +310,57 @@ function doPost(e) {
 
     const row = headers.map(h => (data[h] !== undefined ? data[h] : ''));
     sh.appendRow(row);
+    updateSummary_(data.emp_id, data.emp_name);
     return json_({ status: 'success' });
   } catch (err) {
     return json_({ status: 'error', msg: err.toString() });
+  }
+}
+
+const SUMMARY_TAB = 'Leader Summary';
+const SUMMARY_HEADERS = ['emp_id', 'emp_name', 'partner_meets', 'team_meets', 'insurer_meets', 'total_visits', 'last_updated'];
+
+function getSummarySheet_() {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  let sh = ss.getSheetByName(SUMMARY_TAB);
+  if (!sh) sh = ss.insertSheet(SUMMARY_TAB);
+  if (sh.getLastRow() === 0) sh.appendRow(SUMMARY_HEADERS);
+  return sh;
+}
+
+function countByEmp_(type, empId) {
+  const sh = getSheet_(type);
+  const rows = sh.getDataRange().getValues();
+  if (rows.length < 2) return 0;
+  const empCol = rows[0].indexOf('emp_id');
+  let count = 0;
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][empCol]) === String(empId)) count++;
+  }
+  return count;
+}
+
+/**
+ * Live tracker of how many partner/team/insurer visits each leader has
+ * logged, kept in its own "Leader Summary" tab and refreshed on every new
+ * submission (not needed for edits, since those don't change counts).
+ */
+function updateSummary_(empId, empName) {
+  if (!empId) return;
+  const sh = getSummarySheet_();
+  const pmCount = countByEmp_('pm', empId);
+  const tcCount = countByEmp_('tc', empId);
+  const imCount = countByEmp_('im', empId);
+  const total = pmCount + tcCount + imCount;
+  const rows = sh.getDataRange().getValues();
+  let targetRow = -1;
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][0]) === String(empId)) { targetRow = i + 1; break; }
+  }
+  const rowData = [empId, empName || '', pmCount, tcCount, imCount, total, new Date().toISOString()];
+  if (targetRow === -1) {
+    sh.appendRow(rowData);
+  } else {
+    sh.getRange(targetRow, 1, 1, rowData.length).setValues([rowData]);
   }
 }
