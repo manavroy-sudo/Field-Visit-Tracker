@@ -382,6 +382,14 @@ table.admin-table{width:100%;border-collapse:collapse;font-size:12px;background:
   .kpi-grid{grid-template-columns:repeat(2,1fr)}
   .cal-grid{font-size:11px}
   .cal-day{min-height:56px}
+  .topbar{padding:0 10px;gap:8px}
+  .topbar-logo{width:auto}
+  .tb-date{display:none}
+}
+@media(max-width:600px){
+  .tb-brand{display:none}
+  .tb-page-title{font-size:13px}
+  .tb-travel-badge{padding:4px 8px;font-size:10px}
 }
 @media(max-width:480px){
   .grid-3{grid-template-columns:1fr}
@@ -506,7 +514,7 @@ table.admin-table{width:100%;border-collapse:collapse;font-size:12px;background:
         </div>
 
         <!-- KPIs - 3 essential cards -->
-        <div class="kpi-grid mb-20" style="grid-template-columns:repeat(3,1fr)">
+        <div class="kpi-grid mb-20">
           <div class="kpi navy"><div class="kpi-icon">📊</div><div class="kpi-label">Total Visits</div><div class="kpi-value" id="kPlan">—</div><div class="kpi-sub">Planned · August 2026</div></div>
           <div class="kpi green"><div class="kpi-icon">✅</div><div class="kpi-label">Completed Visits</div><div class="kpi-value" id="kDone">0</div><div class="kpi-sub" id="kDonePct">0% of plan</div></div>
           <div class="kpi amber"><div class="kpi-icon">⏳</div><div class="kpi-label">Pending Visits</div><div class="kpi-value" id="kPend">—</div><div class="kpi-sub">Remaining</div></div>
@@ -1028,6 +1036,12 @@ table.admin-table{width:100%;border-collapse:collapse;font-size:12px;background:
           <div class="kpi purple"><div class="kpi-icon">🔥</div><div class="kpi-label">On Track</div><div class="kpi-value" id="ak_perfect">0</div><div class="kpi-sub">Leaders 100%</div></div>
         </div>
 
+        <div class="kpi-grid mb-20">
+          <div class="kpi" style="border-top:3px solid var(--pm-c)"><div class="kpi-icon">🤝</div><div class="kpi-label">Total Partner Meets</div><div class="kpi-value" id="ak_pmTotal" style="color:var(--pm-c)">—</div><div class="kpi-sub">Firm-wide · Aug 2026</div></div>
+          <div class="kpi" style="border-top:3px solid var(--tc-c)"><div class="kpi-icon">👥</div><div class="kpi-label">Total Team Meets</div><div class="kpi-value" id="ak_tcTotal" style="color:var(--tc-c)">—</div><div class="kpi-sub">Firm-wide · Aug 2026</div></div>
+          <div class="kpi" style="border-top:3px solid var(--im-c)"><div class="kpi-icon">🏢</div><div class="kpi-label">Total Insurer Meets</div><div class="kpi-value" id="ak_imTotal" style="color:var(--im-c)">—</div><div class="kpi-sub">Firm-wide · Aug 2026</div></div>
+        </div>
+
         <div class="card mb-20">
           <div class="filters-bar">
             <select class="filter-sel" id="af_zone" onchange="renderAdminTable()">
@@ -1057,6 +1071,17 @@ table.admin-table{width:100%;border-collapse:collapse;font-size:12px;background:
           <div class="chart-card">
             <div class="chart-title">Role-wise Progress</div>
             <div class="bar-chart" id="roleChart"></div>
+          </div>
+        </div>
+
+        <div class="chart-grid">
+          <div class="chart-card">
+            <div class="chart-title">Visit Type Breakdown by Zone</div>
+            <div class="bar-chart" id="zoneTypeChart"></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">Visit Type Breakdown by Role</div>
+            <div class="bar-chart" id="roleTypeChart"></div>
           </div>
         </div>
 
@@ -1557,7 +1582,11 @@ function getVisitStatus(dateKey) {
   const planDate = parseDateKey(dateKey);
   const sub = getSubmission(currentUser.id, dateKey);
   if (sub) return 'visited';
-  if (planDate < new Date(now.getFullYear(), now.getMonth(), now.getDate())) return 'missed';
+  const today0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const daysPast = Math.round((today0 - planDate) / 86400000);
+  // Full 24h grace past the planned day: only becomes "missed" the day AFTER
+  // that grace day (so a Tuesday visit can still be logged all of Wednesday).
+  if (daysPast >= 2) return 'missed';
   if (dateKey === dateKey_today()) return 'today';
   return 'planned';
 }
@@ -2261,15 +2290,31 @@ function renderAdmin() {
   const uniqueLeaders = Object.values(
     getLeadersList().reduce((acc,l) => { acc[l.id] = l; return acc; }, {})
   );
-  let totalPlanned=0, totalDone=0, totalResponses=0;
+  const now0 = getToday();
+  const today0 = new Date(now0.getFullYear(), now0.getMonth(), now0.getDate());
+  let totalPlanned=0, totalDone=0, totalResponses=0, totalPM=0, totalTC=0, totalIM=0, totalMissed=0, onTrackCount=0;
   let lastUpdatedTs = '';
   uniqueLeaders.forEach(l => {
     totalPlanned += l.plan;
     const s = submissions[l.id] || {};
-    const cnt = Object.keys(s).length;
-    totalDone += cnt;
-    totalResponses += cnt;
-    Object.values(s).forEach(sub => {
+    const subList = Object.values(s);
+    totalDone += subList.length;
+    totalResponses += subList.length;
+    totalPM += subList.filter(x=>x.type==='pm').length;
+    totalTC += subList.filter(x=>x.type==='tc').length;
+    totalIM += subList.filter(x=>x.type==='im').length;
+
+    const plan = getTravelPlansMap()[l.id] || {};
+    let leaderMissed = 0;
+    Object.keys(plan).forEach(dk => {
+      const hasSub = subList.some(sub => sub.dk === dk);
+      const daysPast = Math.round((today0 - parseDateKey(dk)) / 86400000);
+      if (!hasSub && daysPast >= 2) leaderMissed++;
+    });
+    totalMissed += leaderMissed;
+    if (l.plan > 0 && subList.length >= l.plan) onTrackCount++;
+
+    subList.forEach(sub => {
       if (sub.ts && sub.ts > lastUpdatedTs) lastUpdatedTs = sub.ts;
     });
   });
@@ -2280,7 +2325,13 @@ function renderAdmin() {
   document.getElementById('ak_avg').textContent = uniqueLeaders.length>0 ? Math.round(totalDone/uniqueLeaders.length*10)/10 : 0;
   document.getElementById('ak_totalResponses').textContent = totalResponses;
   document.getElementById('ak_lastUpdated').textContent = lastUpdatedTs ? new Date(lastUpdatedTs).toLocaleString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : 'No data yet';
+  document.getElementById('ak_pmTotal').textContent = totalPM;
+  document.getElementById('ak_tcTotal').textContent = totalTC;
+  document.getElementById('ak_imTotal').textContent = totalIM;
+  document.getElementById('ak_missed').textContent = totalMissed;
+  document.getElementById('ak_perfect').textContent = onTrackCount;
 
+  populateAdminFilters(uniqueLeaders);
   renderAdminTable();
   renderAdminCharts();
   renderLoginLog();
@@ -2310,6 +2361,18 @@ function renderLoginLog() {
   }).join('');
 }
 
+function populateAdminFilters(uniqueLeaders) {
+  const zoneSel = document.getElementById('af_zone');
+  const roleSel = document.getElementById('af_role');
+  const zones = [...new Set(uniqueLeaders.map(l=>l.zone).filter(Boolean))].sort();
+  const roles = [...new Set(uniqueLeaders.map(l=>l.role).filter(Boolean))].sort();
+  const prevZone = zoneSel.value, prevRole = roleSel.value;
+  zoneSel.innerHTML = '<option value="">All Zones</option>' + zones.map(z=>`<option>${z}</option>`).join('');
+  roleSel.innerHTML = '<option value="">All Roles</option>' + roles.map(r=>`<option>${r}</option>`).join('');
+  if (zones.includes(prevZone)) zoneSel.value = prevZone;
+  if (roles.includes(prevRole)) roleSel.value = prevRole;
+}
+
 function renderAdminTable() {
   const uniqueLeaders = Object.values(
     getLeadersList().reduce((acc,l) => { acc[l.id] = l; return acc; }, {})
@@ -2325,6 +2388,7 @@ function renderAdminTable() {
   document.getElementById('af_count').textContent = `Showing ${filtered.length} leaders`;
 
   const now = getToday();
+  const today0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const body = document.getElementById('adminTableBody');
   body.innerHTML = filtered.map((l,i) => {
     const subs = submissions[l.id] || {};
@@ -2338,7 +2402,8 @@ function renderAdminTable() {
     Object.keys(plan).forEach(dk => {
       const pd = parseDateKey(dk);
       const hasSub = subList.some(s => s.dk === dk);
-      if (!hasSub && pd < new Date(now.getFullYear(),now.getMonth(),now.getDate())) missed++;
+      const daysPast = Math.round((today0 - pd) / 86400000);
+      if (!hasSub && daysPast >= 2) missed++;
     });
     const pending = Math.max(0, l.plan - done - missed);
     const pct = l.plan>0 ? Math.round(done/l.plan*100) : 0;
@@ -2364,10 +2429,15 @@ function renderAdminTable() {
 }
 
 function renderAdminCharts() {
-  const zones = ['North','RON','West','E&C','South'];
+  const uniqueLeaders = Object.values(
+    getLeadersList().reduce((acc,l) => { acc[l.id] = l; return acc; }, {})
+  );
+  const zones = [...new Set(uniqueLeaders.map(l=>l.zone).filter(Boolean))].sort();
+  const roles = [...new Set(uniqueLeaders.map(l=>l.role).filter(Boolean))].sort();
+
   const zoneChart = document.getElementById('zoneChart');
   zoneChart.innerHTML = zones.map(z => {
-    const leaders = getLeadersList().filter(l=>l.zone===z);
+    const leaders = uniqueLeaders.filter(l=>l.zone===z);
     const planned = leaders.reduce((s,l)=>s+l.plan,0);
     const done = leaders.reduce((s,l)=>s+Object.keys(submissions[l.id]||{}).length,0);
     const pct = planned>0?Math.round(done/planned*100):0;
@@ -2378,10 +2448,9 @@ function renderAdminCharts() {
     </div>`;
   }).join('');
 
-  const roles = ['ZH','RH','SH','RM'];
   const roleChart = document.getElementById('roleChart');
   roleChart.innerHTML = roles.map(r => {
-    const leaders = getLeadersList().filter(l=>l.role===r);
+    const leaders = uniqueLeaders.filter(l=>l.role===r);
     const planned = leaders.reduce((s,l)=>s+l.plan,0);
     const done = leaders.reduce((s,l)=>s+Object.keys(submissions[l.id]||{}).length,0);
     const pct = planned>0?Math.round(done/planned*100):0;
@@ -2391,6 +2460,42 @@ function renderAdminCharts() {
       <div class="bar-val">${pct}%</div>
     </div>`;
   }).join('');
+
+  // Visit-type breakdown by zone/role — 3 rows (Partner/Team/Insurer) per group
+  function typeCountsFor(leaders) {
+    let pm=0, tc=0, im=0;
+    leaders.forEach(l => {
+      Object.values(submissions[l.id]||{}).forEach(sub => {
+        if (sub.type==='pm') pm++; else if (sub.type==='tc') tc++; else if (sub.type==='im') im++;
+      });
+    });
+    return {pm, tc, im};
+  }
+  function renderTypeBreakdown(groups, getLeaders) {
+    const counts = groups.map(g => typeCountsFor(getLeaders(g)));
+    const maxVal = Math.max(1, ...counts.flatMap(c => [c.pm, c.tc, c.im]));
+    return groups.map((g,i) => {
+      const c = counts[i];
+      const rows = [
+        {label:'Partner', val:c.pm, color:'var(--pm-c)'},
+        {label:'Team', val:c.tc, color:'var(--tc-c)'},
+        {label:'Insurer', val:c.im, color:'var(--im-c)'}
+      ];
+      return `<div style="margin-bottom:10px">
+        <div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:4px">${g}</div>
+        ${rows.map(r => `<div class="bar-row" style="gap:6px">
+          <div class="bar-label" style="width:50px;font-size:10px">${r.label}</div>
+          <div class="bar-track"><div class="bar-fill" style="width:${Math.round(r.val/maxVal*100)}%;background:${r.color}"></div></div>
+          <div class="bar-val">${r.val}</div>
+        </div>`).join('')}
+      </div>`;
+    }).join('');
+  }
+
+  const zoneTypeChart = document.getElementById('zoneTypeChart');
+  if (zoneTypeChart) zoneTypeChart.innerHTML = renderTypeBreakdown(zones, z => uniqueLeaders.filter(l=>l.zone===z));
+  const roleTypeChart = document.getElementById('roleTypeChart');
+  if (roleTypeChart) roleTypeChart.innerHTML = renderTypeBreakdown(roles, r => uniqueLeaders.filter(l=>l.role===r));
 }
 
 // —————————————————————————————————————————————
