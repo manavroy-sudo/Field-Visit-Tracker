@@ -605,6 +605,7 @@ table.admin-table{width:100%;border-collapse:collapse;font-size:12px;background:
                   <input class="fi2" type="date" id="pm_date" style="width:140px"/>
                 </div>
               </div>
+              <div id="pm_locationStatus" style="margin-top:10px;font-size:12px;line-height:1.5"></div>
             </div>
           </div>
 
@@ -810,6 +811,7 @@ table.admin-table{width:100%;border-collapse:collapse;font-size:12px;background:
             <div class="form-body">
               <div class="plan-selector" id="tc_planSelector"></div>
               <div style="margin-top:10px"><input class="fi2" type="date" id="tc_date" style="max-width:180px"/></div>
+              <div id="tc_locationStatus" style="margin-top:10px;font-size:12px;line-height:1.5"></div>
             </div>
           </div>
           <!-- STEP 2: Auto-filled -->
@@ -911,6 +913,7 @@ table.admin-table{width:100%;border-collapse:collapse;font-size:12px;background:
             <div class="form-body">
               <div class="plan-selector" id="im_planSelector"></div>
               <div style="margin-top:10px"><input class="fi2" type="date" id="im_date" style="max-width:180px"/></div>
+              <div id="im_locationStatus" style="margin-top:10px;font-size:12px;line-height:1.5"></div>
             </div>
           </div>
           <!-- STEP 2: Auto-filled -->
@@ -1258,6 +1261,8 @@ let selectedPlanDate = {}; // per form type
 let loginLogs = []; // [{timestamp, emp_id, emp_name, role, zone, region}]
 let LIVE_LEADERS = null; // live roster from the M&H Travel Plan sheet, once fetched
 let LIVE_TRAVEL_PLANS = null; // live {empId: {dateKey: city}}, once fetched
+let CITY_COORDS = {}; // {cityName: {lat,lng}} — geocoded server-side, cached in the Sheet
+let locationChecks = {pm:null, tc:null, im:null}; // per-form-type in-flight/-resolved location check promise
 
 function getLeadersList() {
   return (LIVE_LEADERS && LIVE_LEADERS.length) ? LIVE_LEADERS : LEADERS;
@@ -1330,6 +1335,82 @@ function sheetConfigured() {
   return APPS_SCRIPT_URL && APPS_SCRIPT_URL !== 'YOUR_APPS_SCRIPT_URL_HERE';
 }
 
+// —————————————————————————————————————————————
+// LOCATION CHECK — must a leader be within 30km of the planned city to submit?
+// —————————————————————————————————————————————
+// Mirrors apps-script/Code.gs's CITY_ALIASES so the lookup key matches the
+// same coordinates the server geocoded and cached.
+const CITY_ALIASES = {
+  'bhuneshwar':'Bhubaneswar','bhubneshwar':'Bhubaneswar','bhubaneshwar':'Bhubaneswar',
+  'coochbihar':'Cooch Behar','coochbehar':'Cooch Behar',
+  'n 24 pgn':'North 24 Parganas','south 24 pgn':'South 24 Parganas','north 24 pgn':'North 24 Parganas',
+  'fardabad':'Faridabad','faridabd':'Faridabad','fardabd':'Faridabad',
+  'kkamgaon':'Khamgaon','noda':'Noida','nandad':'Nanded',
+  'ferozpur':'Firozpur','bhathinda':'Bathinda',
+  'nalagargh & baddi':'Nalagarh','nalagargh':'Nalagarh',
+  'vihskapatnam':'Visakhapatnam','chithoor':'Chittoor','tirupathi':'Tirupati',
+  'cochin':'Kochi','sitamahri':'Sitamarhi','nababganj':'Nawabganj',
+  'amathi':'Amethi','raibareily':'Raebareli',
+  'krishna nagar':'Krishnanagar','baraipur':'Baruipur','silligudi':'Siliguri',
+  'asansoal':'Asansol','bardhman':'Bardhaman','kareemnagar':'Karimnagar',
+  'doddabllapur karnataka':'Doddaballapur','tiruvalluar':'Tiruvallur','vijianagaram':'Vizianagaram',
+  'pankchkula':'Panchkula'
+};
+function normalizeCity(name) {
+  let s = String(name || '').trim().replace(/\s+/g, ' ').replace(/\/.*$/, '').trim();
+  return CITY_ALIASES[s.toLowerCase()] || s;
+}
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+// Kicks off a geolocation read + distance check for the given city, and
+// returns a promise that always resolves (never blocks submission) with:
+//   { verified: 'verified'|'mismatch'|'city_unresolved'|'unavailable', distanceKm, lat, lng }
+function checkLocationForCity(city) {
+  return new Promise(resolve => {
+    if (!navigator.geolocation) { resolve({ verified: 'unavailable' }); return; }
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        const coords = CITY_COORDS[normalizeCity(city)];
+        if (!coords) { resolve({ verified: 'city_unresolved', lat, lng }); return; }
+        const distanceKm = Math.round(haversineKm(lat, lng, coords.lat, coords.lng) * 10) / 10;
+        resolve({ verified: distanceKm <= 30 ? 'verified' : 'mismatch', distanceKm, lat, lng });
+      },
+      () => resolve({ verified: 'unavailable' }),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+  });
+}
+
+function renderLocationStatus(formType, result, city) {
+  const el = document.getElementById(formType + '_locationStatus');
+  if (!el) return;
+  const messages = {
+    verified: `<span style="color:var(--green)">✅ Location verified · ${result.distanceKm}km from ${city}</span>`,
+    mismatch: `<span style="color:var(--amber)">⚠️ You appear to be ~${result.distanceKm}km from ${city} (outside 30km). This will be flagged for review — you can still submit.</span>`,
+    city_unresolved: `<span style="color:var(--txt3)">📍 Location captured, but "${city}" isn't mapped to coordinates yet — submitting as unverified.</span>`,
+    unavailable: `<span style="color:var(--txt3)">📍 Location unavailable (denied or no signal) — submitting as unverified.</span>`
+  };
+  el.innerHTML = messages[result.verified] || '';
+}
+
+function startLocationCheck(formType, city) {
+  const p = checkLocationForCity(city).then(result => {
+    renderLocationStatus(formType, result, city);
+    return result;
+  });
+  locationChecks[formType] = p;
+  const el = document.getElementById(formType + '_locationStatus');
+  if (el) el.innerHTML = '<span style="color:var(--txt3)">📍 Checking your location…</span>';
+  return p;
+}
+
 async function fetchSubmissionsFromSheet() {
   if (!sheetConfigured()) return false;
   try {
@@ -1358,6 +1439,7 @@ async function fetchSubmissionsFromSheet() {
     if (Array.isArray(result.travel_skipped) && result.travel_skipped.length) {
       console.warn('Travel plan rows skipped (no matching Employee ID):', result.travel_skipped);
     }
+    if (result.city_coords && Object.keys(result.city_coords).length) CITY_COORDS = result.city_coords;
     saveToStorage();
     return true;
   } catch (err) {
@@ -1884,6 +1966,7 @@ function selectPlanDate(formType, dk, city) {
   document.querySelectorAll(`#${formType}_planSelector .plan-item`).forEach(el => el.classList.remove('selected-plan'));
   const selected = document.querySelector(`#${formType}_planSelector input[value="${dk}"]`);
   if (selected) selected.closest('.plan-item').classList.add('selected-plan');
+  startLocationCheck(formType, city);
 }
 
 function clearFormFields(type) {
@@ -2019,6 +2102,14 @@ async function submitForm(type) {
   // Use dateKey + timestamp for uniqueness (allows multiple per day)
   const subKey = dk + '_' + Date.now();
   payload.submission_id = subKey;
+
+  // Location is always allowed through (never blocks a real field visit) but
+  // every submission is flagged with how it resolved, for admin visibility.
+  const locResult = await (locationChecks[type] || startLocationCheck(type, payload.city));
+  payload.location_lat = locResult.lat || '';
+  payload.location_lng = locResult.lng || '';
+  payload.location_distance_km = locResult.distanceKm ?? '';
+  payload.location_verified = locResult.verified || 'unavailable';
 
   // Save to local state immediately for a responsive UI
   if (!submissions[currentUser.id]) submissions[currentUser.id] = {};

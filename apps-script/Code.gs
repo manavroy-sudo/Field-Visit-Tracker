@@ -35,16 +35,17 @@ const TRAVEL_SHEET_ID = '1wtvnrhCemuwEqHxO_dxhF9NEJ92M3BMV1Gy0zrrCDDg';
 const TRAVEL_TAB_NAME = "Aug'26";
 
 // Exact field names written/read for each visit type. Order defines column order.
+const LOCATION_FIELDS = ['location_lat','location_lng','location_distance_km','location_verified'];
 const HEADERS = {
   pm: ['submission_id','ts','emp_id','emp_name','designation','zone','region','planned_date','city',
        'partner_gid','partner_name','partner_contact','exist_new','bucket','status','purpose',
        'purpose_other','active_challenges','challenge_other','trend','confidence','inactive_reason',
-       'lob','support','outcome','notes','edited_ts','edited_by'],
+       'lob','support','outcome','notes','edited_ts','edited_by'].concat(LOCATION_FIELDS),
   tc: ['submission_id','ts','emp_id','emp_name','designation','zone','region','planned_date','city',
        'mode','branch','bcity','meet_type','objective','team_size','agenda','actions','health',
-       'challenge','challenge_other','edited_ts','edited_by'],
+       'challenge','challenge_other','edited_ts','edited_by'].concat(LOCATION_FIELDS),
   im: ['submission_id','ts','emp_id','emp_name','designation','zone','region','planned_date','city',
-       'insurer','purpose','discussion_areas','outcomes_text','outcome','edited_ts','edited_by']
+       'insurer','purpose','discussion_areas','outcomes_text','outcome','edited_ts','edited_by'].concat(LOCATION_FIELDS)
 };
 
 function getSheet_(type) {
@@ -99,6 +100,33 @@ function getLogins_() {
     logins.push(rec);
   }
   return logins;
+}
+
+// Known misspellings/abbreviations seen in the live Travel Plan sheet, mapped
+// to their correct name so geocoding actually finds them. Extend this list as
+// new typos show up in future months' plans — matching is case-insensitive.
+const CITY_ALIASES = {
+  'bhuneshwar': 'Bhubaneswar', 'bhubneshwar': 'Bhubaneswar', 'bhubaneshwar': 'Bhubaneswar',
+  'coochbihar': 'Cooch Behar', 'coochbehar': 'Cooch Behar',
+  'n 24 pgn': 'North 24 Parganas', 'south 24 pgn': 'South 24 Parganas', 'north 24 pgn': 'North 24 Parganas',
+  'fardabad': 'Faridabad', 'faridabd': 'Faridabad', 'fardabd': 'Faridabad',
+  'kkamgaon': 'Khamgaon', 'noda': 'Noida', 'nandad': 'Nanded',
+  'ferozpur': 'Firozpur', 'bhathinda': 'Bathinda',
+  'nalagargh & baddi': 'Nalagarh', 'nalagargh': 'Nalagarh',
+  'vihskapatnam': 'Visakhapatnam', 'chithoor': 'Chittoor', 'tirupathi': 'Tirupati',
+  'cochin': 'Kochi', 'sitamahri': 'Sitamarhi', 'nababganj': 'Nawabganj',
+  'amathi': 'Amethi', 'raibareily': 'Raebareli',
+  'krishna nagar': 'Krishnanagar', 'baraipur': 'Baruipur', 'silligudi': 'Siliguri',
+  'asansoal': 'Asansol', 'bardhman': 'Bardhaman', 'kareemnagar': 'Karimnagar',
+  'doddabllapur karnataka': 'Doddaballapur', 'tiruvalluar': 'Tiruvallur', 'vijianagaram': 'Vizianagaram',
+  'pankchkula': 'Panchkula'
+};
+
+function normalizeCity_(name) {
+  let s = String(name || '').trim().replace(/\s+/g, ' ');
+  s = s.replace(/\/.*$/, '').trim(); // strip "/neem ka dhana"-style suffixes
+  const key = s.toLowerCase();
+  return CITY_ALIASES[key] || s;
 }
 
 function normalizeName_(s) {
@@ -238,6 +266,105 @@ function getTravelPlanData_() {
   return { roster: roster, plans: plans, skipped: skipped };
 }
 
+// —————————————————————————————————————————————
+// CITY GEOCODING — for the 30km location check on submit
+// —————————————————————————————————————————————
+const CITY_COORDS_TAB = 'City Coordinates';
+const CITY_COORDS_HEADERS = ['city', 'lat', 'lng', 'geocoded_at'];
+const MAX_GEOCODE_PER_REQUEST = 4; // keep doGet fast; the rest top up over the next few loads
+
+function getCityCoordsSheet_() {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  let sh = ss.getSheetByName(CITY_COORDS_TAB);
+  if (!sh) sh = ss.insertSheet(CITY_COORDS_TAB);
+  if (sh.getLastRow() === 0) sh.appendRow(CITY_COORDS_HEADERS);
+  return sh;
+}
+
+function getCityCoordsCache_() {
+  const sh = getCityCoordsSheet_();
+  const rows = sh.getDataRange().getValues();
+  const map = {};
+  for (let i = 1; i < rows.length; i++) {
+    const [city, lat, lng] = rows[i];
+    if (city && lat && lng) map[city] = { lat: Number(lat), lng: Number(lng) };
+  }
+  return map;
+}
+
+function geocodeCity_(cityName) {
+  try {
+    const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=in&q=' +
+      encodeURIComponent(cityName + ', India');
+    const res = UrlFetchApp.fetch(url, {
+      headers: { 'User-Agent': 'InsuranceDekho-FieldVisitTracker/1.0 (internal tool)' },
+      muteHttpExceptions: true
+    });
+    const arr = JSON.parse(res.getContentText());
+    if (arr && arr.length) {
+      return { lat: parseFloat(arr[0].lat), lng: parseFloat(arr[0].lon) };
+    }
+  } catch (e) {
+    // swallow — city just won't have cached coords this round
+  }
+  return null;
+}
+
+/**
+ * Geocodes any cities from the current travel plan that aren't cached yet,
+ * capped per-request so doGet stays fast. Run backfillCityCoordinates()
+ * manually (Apps Script editor -> Run) to catch up the rest in one go.
+ */
+function topUpCityCoordinates_(plans) {
+  const cache = getCityCoordsCache_();
+  const uniqueCities = new Set();
+  Object.values(plans).forEach(dayMap => {
+    Object.values(dayMap).forEach(city => uniqueCities.add(normalizeCity_(city)));
+  });
+  const missing = [...uniqueCities].filter(c => c && !cache[c]);
+  if (!missing.length) return cache;
+
+  const sh = getCityCoordsSheet_();
+  let did = 0;
+  for (const city of missing) {
+    if (did >= MAX_GEOCODE_PER_REQUEST) break;
+    const coords = geocodeCity_(city);
+    if (coords) {
+      sh.appendRow([city, coords.lat, coords.lng, new Date().toISOString()]);
+      cache[city] = coords;
+    }
+    did++;
+    if (did < missing.length) Utilities.sleep(1100); // respect Nominatim's 1 req/sec policy
+  }
+  return cache;
+}
+
+/**
+ * One-time manual catch-up: run this from the Apps Script editor (select this
+ * function, click Run) to geocode ALL missing cities in one go, instead of
+ * waiting for them to top up a few at a time across normal app usage.
+ */
+function backfillCityCoordinates() {
+  const travel = getTravelPlanData_();
+  const cache = getCityCoordsCache_();
+  const uniqueCities = new Set();
+  Object.values(travel.plans).forEach(dayMap => {
+    Object.values(dayMap).forEach(city => uniqueCities.add(normalizeCity_(city)));
+  });
+  const missing = [...uniqueCities].filter(c => c && !cache[c]);
+  const sh = getCityCoordsSheet_();
+  let done = 0;
+  missing.forEach(city => {
+    const coords = geocodeCity_(city);
+    if (coords) {
+      sh.appendRow([city, coords.lat, coords.lng, new Date().toISOString()]);
+      done++;
+    }
+    Utilities.sleep(1100);
+  });
+  Logger.log('Geocoded ' + done + ' of ' + missing.length + ' missing cities.');
+}
+
 function doGet(e) {
   try {
     const key = (e.parameter && e.parameter.key) || '';
@@ -264,6 +391,13 @@ function doGet(e) {
       travel.error = travelErr.toString();
     }
 
+    let cityCoords = {};
+    try {
+      cityCoords = topUpCityCoordinates_(travel.plans || {});
+    } catch (geoErr) {
+      // don't let a geocoding hiccup take down the rest of the sync
+    }
+
     return json_({
       status: 'success',
       data: data,
@@ -271,7 +405,8 @@ function doGet(e) {
       roster: travel.roster,
       plans: travel.plans,
       travel_skipped: travel.skipped || [],
-      travel_error: travel.error || ''
+      travel_error: travel.error || '',
+      city_coords: cityCoords
     });
   } catch (err) {
     return json_({ status: 'error', msg: err.toString() });
