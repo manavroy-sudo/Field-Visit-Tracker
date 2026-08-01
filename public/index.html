@@ -89,6 +89,8 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
 /* APP SHELL */
 #app{display:none;flex-direction:column;min-height:100vh}
 #app.on{display:flex}
+#appSyncOverlay{display:none;position:fixed;inset:0;z-index:8000;background:var(--bg);flex-direction:column;align-items:center;justify-content:center;gap:14px}
+#appSyncOverlay.on{display:flex}
 
 /* SIDEBAR + LAYOUT */
 .app-layout{display:flex;flex:1;min-height:calc(100vh - 60px)}
@@ -430,6 +432,12 @@ table.admin-table{width:100%;border-collapse:collapse;font-size:12px;background:
 
 <!-- MAIN APP -->
 <div id="app">
+  <!-- SYNC OVERLAY — shown while switching sessions so stale content from a
+       previous login is never visible during the (multi-second) Sheet sync -->
+  <div id="appSyncOverlay">
+    <div class="sp-spin" style="border-color:rgba(26,43,74,.15);border-top-color:var(--navy)"></div>
+    <div style="font-family:var(--font2);font-weight:700;color:var(--navy);font-size:13px">Loading your dashboard…</div>
+  </div>
   <!-- TOPBAR -->
   <div class="topbar">
     <button class="tb-menu-btn" onclick="toggleSidebar()">☰</button>
@@ -1424,14 +1432,16 @@ function doLogout() {
 async function showApp(skipInitialFetch) {
   document.getElementById('loginScreen').classList.remove('on');
   document.getElementById('app').classList.add('on');
+  // Cover any stale content left over from a previous session (e.g. switching
+  // straight from a leader login to admin without a page reload) until this
+  // session's data has actually loaded and the correct view is decided below.
+  document.getElementById('appSyncOverlay').classList.add('on');
   updateTopbar();
   updateSidebar();
 
   if (sheetConfigured() && !skipInitialFetch) {
-    showToast('Syncing with Google Sheet…', '');
     const ok = await fetchSubmissionsFromSheet();
-    if (ok) showToast('Synced', 'success');
-    else showToast('Could not reach Sheet — showing cached data', 'warn');
+    if (!ok) showToast('Could not reach Sheet — showing cached data', 'warn');
   }
 
   if (isAdmin) {
@@ -1456,6 +1466,7 @@ async function showApp(skipInitialFetch) {
     buildPlanSelectors();
     navigate('home');
   }
+  document.getElementById('appSyncOverlay').classList.remove('on');
 }
 
 function updateTopbar() {
