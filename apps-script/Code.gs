@@ -452,6 +452,17 @@ function doPost(e) {
       return logLogin_(data);
     }
 
+    // Manual/testing hook: trigger the day-wise travel summary on demand for
+    // any specific day (data.day, e.g. '4-Aug') instead of waiting for the
+    // 10am trigger. Omit data.day to send today's summary.
+    if (data.action === 'sendTravelSummary') {
+      const payload = data.day
+        ? buildTravelSummaryForDay_(data.day, data.day)
+        : buildTodaysTravelSummary_();
+      postToChat_(payload);
+      return json_({ status: 'success', preview: payload.text });
+    }
+
     const type = data.visit_type;
     if (!TABS[type]) return json_({ status: 'error', msg: 'invalid visit_type' });
     const sh = getSheet_(type);
@@ -553,25 +564,22 @@ var NAME_W_ = 18, ROLE_W_ = 4, CITY_W_ = 16;
 /**
  * Builds a plain-text, monospace ASCII table inside a ``` code block —
  * grouped by zone via an in-table sub-header line rather than a 5th column,
- * to keep every row within the fixed width above.
+ * to keep every row within the fixed width above. dayKey must match the
+ * travel plan's own column-key format ('d-MMM', e.g. '4-Aug'); dateLabel is
+ * just the human-readable heading shown above the table.
  */
-function buildTodaysTravelSummary_() {
+function buildTravelSummaryForDay_(dayKey, dateLabel) {
   const travel = getTravelPlanData_();
-  const tz = SpreadsheetApp.openById(TRAVEL_SHEET_ID).getSpreadsheetTimeZone();
-  const now = new Date();
-  const todayKey = Utilities.formatDate(now, tz, 'd-MMM');
 
   const rows = [];
   travel.roster.forEach(l => {
-    const city = (travel.plans[l.id] || {})[todayKey];
+    const city = (travel.plans[l.id] || {})[dayKey];
     if (city) rows.push({ zone: l.zone, name: l.name, role: l.role, city: city });
   });
   rows.sort((a, b) => a.zone.localeCompare(b.zone) || a.name.localeCompare(b.name));
 
-  const dateLabel = Utilities.formatDate(now, tz, 'EEEE, d MMMM yyyy');
-
   if (!rows.length) {
-    return { text: '*Field Visit Tracker - Today\'s Travel Plan*\n' + dateLabel + '\n\nNo leaders have a planned city visit today.' };
+    return { text: '*Field Visit Tracker - Travel Plan*\n' + dateLabel + '\n\nNo leaders have a planned city visit on this day.' };
   }
 
   const totalW = NAME_W_ + ROLE_W_ + CITY_W_ + 2;
@@ -593,8 +601,16 @@ function buildTodaysTravelSummary_() {
     );
   });
 
-  const text = '*Field Visit Tracker - Today\'s Travel Plan*\n' + dateLabel + '\n```\n' + lines.join('\n') + '\n```\nTotal traveling today: ' + rows.length;
+  const text = '*Field Visit Tracker - Travel Plan*\n' + dateLabel + '\n```\n' + lines.join('\n') + '\n```\nTotal traveling: ' + rows.length;
   return { text: text };
+}
+
+function buildTodaysTravelSummary_() {
+  const tz = SpreadsheetApp.openById(TRAVEL_SHEET_ID).getSpreadsheetTimeZone();
+  const now = new Date();
+  const todayKey = Utilities.formatDate(now, tz, 'd-MMM');
+  const dateLabel = Utilities.formatDate(now, tz, 'EEEE, d MMMM yyyy');
+  return buildTravelSummaryForDay_(todayKey, dateLabel);
 }
 
 function postToChat_(payload) {
