@@ -557,28 +557,29 @@ const ROLE_COLORS_ = { ZH: '#1a2b4a', RH: '#3b82f6', SH: '#10b981', RM: '#f59e0b
 const ZONE_DOTS_ = { North: '🔵', RON: '🟠', South: '🟢', West: '🟣', 'E&C': '🔴' };
 
 /**
- * Builds one table row as a real 3-column Card "columns" widget (Role | Name
- * | City) — a genuine side-by-side layout rather than manually-padded text,
- * so it stays aligned on any screen size instead of relying on a monospace
- * font. bold=true is used for the header row.
+ * Builds one leader's row as a decoratedText widget — a location-pin icon
+ * plus an explicit "Traveling to: <city>" bottom label, so the destination
+ * is always unmistakable on its own (unlike a plain columns table, which can
+ * stack into unlabeled lines on a narrow phone screen and lose which value
+ * is which).
  */
-function travelCardRow_(role, name, city, bold) {
-  const wrap = s => (bold ? '<b>' + s + '</b>' : s);
+function travelCardRow_(role, name, city) {
+  const roleColor = ROLE_COLORS_[role] || '#4a5568';
   return {
-    columns: {
-      columnItems: [
-        { horizontalSizeStyle: 'FILL_MINIMUM_SPACE', widgets: [{ textParagraph: { text: wrap(role) } }] },
-        { horizontalSizeStyle: 'FILL_AVAILABLE_SPACE', widgets: [{ textParagraph: { text: wrap(name) } }] },
-        { horizontalSizeStyle: 'FILL_AVAILABLE_SPACE', widgets: [{ textParagraph: { text: wrap(city) } }] }
-      ]
+    decoratedText: {
+      icon: { knownIcon: 'MAP_PIN' },
+      topLabel: '<font color="' + roleColor + '"><b>' + role + '</b></font>',
+      text: '<b>' + name + '</b>',
+      bottomLabel: 'Traveling to: <b>' + city + '</b>',
+      wrapText: true
     }
   };
 }
 
 /**
- * Builds a colored Google Chat Card laid out as a real table (via the
- * Columns widget) — grouped by zone, with each zone's leaders ordered
- * ZH -> RH -> SH -> RM. dayKey must match the travel plan's own column-key
+ * Builds a colored Google Chat Card — grouped by zone, with each zone's
+ * leaders ordered ZH -> RH -> SH -> RM, each row explicitly labeling its
+ * travel destination. dayKey must match the travel plan's own column-key
  * format ('d-MMM', e.g. '4-Aug'); dateLabel is the human-readable heading.
  */
 function buildTravelSummaryForDay_(dayKey, dateLabel) {
@@ -613,11 +614,10 @@ function buildTravelSummaryForDay_(dayKey, dateLabel) {
   rows.forEach(r => {
     if (r.zone !== currentZone) {
       currentZone = r.zone;
-      currentWidgets = [travelCardRow_('ROLE', 'NAME', 'CITY', true), { divider: {} }];
+      currentWidgets = [];
       sections.push({ header: (ZONE_DOTS_[r.zone] || '⚪') + ' ' + currentZone, widgets: currentWidgets });
     }
-    const roleColor = ROLE_COLORS_[r.role] || '#4a5568';
-    currentWidgets.push(travelCardRow_('<font color="' + roleColor + '">' + r.role + '</font>', r.name, r.city, true));
+    currentWidgets.push(travelCardRow_(r.role, r.name, r.city));
   });
   sections.push({
     widgets: [{ textParagraph: { text: '<font color="#10b981"><b>Total traveling: ' + rows.length + '</b></font>' } }]
