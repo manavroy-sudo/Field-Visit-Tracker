@@ -533,18 +533,29 @@ function updateSummary_(empId, empName) {
 // —————————————————————————————————————————————
 // DAILY TRAVEL SUMMARY — posted to a Google Chat space every morning
 // —————————————————————————————————————————————
-// Hex colors mirror the web app's own role-badge palette, for visual consistency.
-const ROLE_COLORS_ = { ZH: '#1a2b4a', RH: '#3b82f6', SH: '#10b981', RM: '#f59e0b' };
-// A colored square per zone, purely as a visual anchor in the section header.
-const ZONE_DOTS_ = { North: '🔵', RON: '🟠', South: '🟢', West: '🟣', 'E&C': '🔴' };
+function padRight_(str, len) {
+  str = String(str);
+  while (str.length < len) str += ' ';
+  return str;
+}
+
+function truncate_(str, max) {
+  str = String(str);
+  return str.length > max ? str.slice(0, max - 1) + '…' : str;
+}
+
+// Fixed, capped column widths (not data-driven) so the total line length is
+// bounded no matter how long a name or city string gets — this is what
+// keeps the table from wrapping/misaligning on a narrow phone screen. Role
+// codes (ZH/RH/SH/RM) are always 2 chars so that column stays tiny.
+var NAME_W_ = 18, ROLE_W_ = 4, CITY_W_ = 16;
 
 /**
- * Builds a Chat "Card" — a manually padded text table doesn't render reliably
- * on the Chat mobile app (no horizontal scroll, different font/width), so a
- * Card is used instead: Chat lays it out responsively on every platform,
- * while still grouping by zone and highlighting role/city like a table would.
+ * Builds a plain-text, monospace ASCII table inside a ``` code block —
+ * grouped by zone via an in-table sub-header line rather than a 5th column,
+ * to keep every row within the fixed width above.
  */
-function buildTodaysTravelCard_() {
+function buildTodaysTravelSummary_() {
   const travel = getTravelPlanData_();
   const tz = SpreadsheetApp.openById(TRAVEL_SHEET_ID).getSpreadsheetTimeZone();
   const now = new Date();
@@ -558,48 +569,32 @@ function buildTodaysTravelCard_() {
   rows.sort((a, b) => a.zone.localeCompare(b.zone) || a.name.localeCompare(b.name));
 
   const dateLabel = Utilities.formatDate(now, tz, 'EEEE, d MMMM yyyy');
-  const sections = [];
 
   if (!rows.length) {
-    sections.push({ widgets: [{ decoratedText: { text: 'No leaders have a planned city visit today.' } }] });
-  } else {
-    let currentZone = null, currentWidgets = null;
-    rows.forEach(r => {
-      if (r.zone !== currentZone) {
-        currentZone = r.zone;
-        currentWidgets = [];
-        const dot = ZONE_DOTS_[r.zone] || '⚪';
-        sections.push({ header: dot + ' ' + currentZone, widgets: currentWidgets });
-      }
-      const roleColor = ROLE_COLORS_[r.role] || '#4a5568';
-      currentWidgets.push({
-        decoratedText: {
-          icon: { knownIcon: 'MAP_PIN' },
-          topLabel: '<font color="' + roleColor + '"><b>' + r.role + '</b></font>',
-          text: '<b>' + r.name + '</b>',
-          bottomLabel: r.city,
-          wrapText: true
-        }
-      });
-    });
-    sections.push({
-      widgets: [{ decoratedText: { text: '<font color="#10b981"><b>Total traveling today: ' + rows.length + '</b></font>' } }]
-    });
+    return { text: '*Field Visit Tracker - Today\'s Travel Plan*\n' + dateLabel + '\n\nNo leaders have a planned city visit today.' };
   }
 
-  return {
-    cardsV2: [{
-      cardId: 'dailyTravelSummary-' + Utilities.formatDate(now, tz, 'yyyyMMdd'),
-      card: {
-        header: {
-          title: 'Field Visit Tracker',
-          subtitle: "Today's Travel Plan - " + dateLabel,
-          imageType: 'CIRCLE'
-        },
-        sections: sections
-      }
-    }]
-  };
+  const totalW = NAME_W_ + ROLE_W_ + CITY_W_ + 2;
+  const lines = [];
+  lines.push(padRight_('NAME', NAME_W_) + ' ' + padRight_('ROLE', ROLE_W_) + ' ' + 'CITY');
+  lines.push('-'.repeat(totalW));
+
+  let currentZone = null;
+  rows.forEach(r => {
+    if (r.zone !== currentZone) {
+      currentZone = r.zone;
+      if (lines.length > 2) lines.push('');
+      lines.push('[' + currentZone + ']');
+    }
+    lines.push(
+      padRight_(truncate_(r.name, NAME_W_), NAME_W_) + ' ' +
+      padRight_(r.role, ROLE_W_) + ' ' +
+      truncate_(r.city, CITY_W_)
+    );
+  });
+
+  const text = '*Field Visit Tracker - Today\'s Travel Plan*\n' + dateLabel + '\n```\n' + lines.join('\n') + '\n```\nTotal traveling today: ' + rows.length;
+  return { text: text };
 }
 
 function postToChat_(payload) {
@@ -622,7 +617,7 @@ function postToChat_(payload) {
  * on-demand summary of who's traveling where today.
  */
 function sendDailyTravelSummary() {
-  postToChat_(buildTodaysTravelCard_());
+  postToChat_(buildTodaysTravelSummary_());
 }
 
 /**
