@@ -533,11 +533,16 @@ function updateSummary_(empId, empName) {
 // —————————————————————————————————————————————
 // DAILY TRAVEL SUMMARY — posted to a Google Chat space every morning
 // —————————————————————————————————————————————
+// Hex colors mirror the web app's own role-badge palette, for visual consistency.
+const ROLE_COLORS_ = { ZH: '#1a2b4a', RH: '#3b82f6', SH: '#10b981', RM: '#f59e0b' };
+// A colored square per zone, purely as a visual anchor in the section header.
+const ZONE_DOTS_ = { North: '🔵', RON: '🟠', South: '🟢', West: '🟣', 'E&C': '🔴' };
+
 /**
- * Builds a Chat "Card" instead of a padded-text table. Padded monospace
- * tables don't render reliably on the Chat mobile app (no horizontal scroll,
- * different font/width) — a Card is Chat's native structured-content format
- * and lays itself out responsively on both desktop and mobile automatically.
+ * Builds a Chat "Card" — a manually padded text table doesn't render reliably
+ * on the Chat mobile app (no horizontal scroll, different font/width), so a
+ * Card is used instead: Chat lays it out responsively on every platform,
+ * while still grouping by zone and highlighting role/city like a table would.
  */
 function buildTodaysTravelCard_() {
   const travel = getTravelPlanData_();
@@ -563,25 +568,34 @@ function buildTodaysTravelCard_() {
       if (r.zone !== currentZone) {
         currentZone = r.zone;
         currentWidgets = [];
-        sections.push({ header: currentZone, widgets: currentWidgets });
+        const dot = ZONE_DOTS_[r.zone] || '⚪';
+        sections.push({ header: dot + ' ' + currentZone, widgets: currentWidgets });
       }
+      const roleColor = ROLE_COLORS_[r.role] || '#4a5568';
       currentWidgets.push({
         decoratedText: {
-          topLabel: r.role,
+          icon: { knownIcon: 'MAP_PIN' },
+          topLabel: '<font color="' + roleColor + '"><b>' + r.role + '</b></font>',
           text: '<b>' + r.name + '</b>',
-          bottomLabel: 'City: ' + r.city,
+          bottomLabel: r.city,
           wrapText: true
         }
       });
     });
-    sections.push({ widgets: [{ decoratedText: { text: '<b>Total traveling today: ' + rows.length + '</b>' } }] });
+    sections.push({
+      widgets: [{ decoratedText: { text: '<font color="#10b981"><b>Total traveling today: ' + rows.length + '</b></font>' } }]
+    });
   }
 
   return {
     cardsV2: [{
       cardId: 'dailyTravelSummary-' + Utilities.formatDate(now, tz, 'yyyyMMdd'),
       card: {
-        header: { title: 'Field Visit Tracker', subtitle: "Today's Travel Plan - " + dateLabel },
+        header: {
+          title: 'Field Visit Tracker',
+          subtitle: "Today's Travel Plan - " + dateLabel,
+          imageType: 'CIRCLE'
+        },
         sections: sections
       }
     }]
@@ -595,7 +609,7 @@ function postToChat_(payload) {
   }
   const res = UrlFetchApp.fetch(CHAT_WEBHOOK_URL, {
     method: 'post',
-    contentType: 'application/json',
+    contentType: 'application/json; charset=UTF-8',
     payload: JSON.stringify(payload),
     muteHttpExceptions: true
   });
