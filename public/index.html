@@ -1358,7 +1358,9 @@ const CITY_ALIASES = {
 };
 function normalizeCity(name) {
   let s = String(name || '').trim().replace(/\s+/g, ' ').replace(/\/.*$/, '').trim();
-  return CITY_ALIASES[s.toLowerCase()] || s;
+  const key = s.toLowerCase();
+  if (CITY_ALIASES[key]) return CITY_ALIASES[key];
+  return key.replace(/\b\w/g, c => c.toUpperCase());
 }
 function haversineKm(lat1, lon1, lat2, lon2) {
   const R = 6371;

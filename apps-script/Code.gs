@@ -126,7 +126,10 @@ function normalizeCity_(name) {
   let s = String(name || '').trim().replace(/\s+/g, ' ');
   s = s.replace(/\/.*$/, '').trim(); // strip "/neem ka dhana"-style suffixes
   const key = s.toLowerCase();
-  return CITY_ALIASES[key] || s;
+  if (CITY_ALIASES[key]) return CITY_ALIASES[key];
+  // Title-case so "gurugram"/"GURUGRAM"/"Gurugram" all collapse to one cache
+  // entry instead of being geocoded and stored as three separate "cities".
+  return key.replace(/\b\w/g, c => c.toUpperCase());
 }
 
 function normalizeName_(s) {
@@ -292,7 +295,26 @@ function getCityCoordsCache_() {
   return map;
 }
 
+/**
+ * Uses Apps Script's built-in Maps geocoder (first-party, no external HTTP
+ * call) as the primary lookup — Nominatim's abuse-prevention frequently
+ * blocks Google's shared Apps Script IP ranges, so a raw UrlFetchApp call to
+ * it fails silently in practice. Falls back to Nominatim only if Maps can't
+ * resolve a name, since it's still worth a second try for odd local names.
+ */
 function geocodeCity_(cityName) {
+  try {
+    const geocoder = Maps.newGeocoder().setRegion('in');
+    const response = geocoder.geocode(cityName + ', India');
+    if (response.status === 'OK' && response.results && response.results.length) {
+      const loc = response.results[0].geometry.location;
+      return { lat: loc.lat, lng: loc.lng };
+    }
+    Logger.log('Maps geocoder returned status ' + response.status + ' for "' + cityName + '"');
+  } catch (e) {
+    Logger.log('Maps geocoder threw for "' + cityName + '": ' + e.toString());
+  }
+
   try {
     const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=in&q=' +
       encodeURIComponent(cityName + ', India');
@@ -300,12 +322,16 @@ function geocodeCity_(cityName) {
       headers: { 'User-Agent': 'InsuranceDekho-FieldVisitTracker/1.0 (internal tool)' },
       muteHttpExceptions: true
     });
+    if (res.getResponseCode() !== 200) {
+      Logger.log('Nominatim HTTP ' + res.getResponseCode() + ' for "' + cityName + '": ' + res.getContentText().slice(0, 200));
+      return null;
+    }
     const arr = JSON.parse(res.getContentText());
     if (arr && arr.length) {
       return { lat: parseFloat(arr[0].lat), lng: parseFloat(arr[0].lon) };
     }
   } catch (e) {
-    // swallow — city just won't have cached coords this round
+    Logger.log('Nominatim fallback threw for "' + cityName + '": ' + e.toString());
   }
   return null;
 }
