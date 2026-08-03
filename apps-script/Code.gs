@@ -460,7 +460,7 @@ function doPost(e) {
         ? buildTravelSummaryForDay_(data.day, data.day)
         : buildTodaysTravelSummary_();
       postToChat_(payload);
-      return json_({ status: 'success', preview: payload.text });
+      return json_({ status: 'success', preview: (payload.count || 0) + ' leader(s) traveling' });
     }
 
     const type = data.visit_type;
@@ -544,29 +544,42 @@ function updateSummary_(empId, empName) {
 // —————————————————————————————————————————————
 // DAILY TRAVEL SUMMARY — posted to a Google Chat space every morning
 // —————————————————————————————————————————————
-function padRight_(str, len) {
-  str = String(str);
-  while (str.length < len) str += ' ';
-  return str;
+// Leadership order shown within each zone (highest first); anything not
+// listed here sorts after these four.
+const ROLE_ORDER_ = { ZH: 0, RH: 1, SH: 2, RM: 3 };
+function roleRank_(role) {
+  return ROLE_ORDER_.hasOwnProperty(role) ? ROLE_ORDER_[role] : 99;
 }
 
-function truncate_(str, max) {
-  str = String(str);
-  return str.length > max ? str.slice(0, max - 1) + '…' : str;
-}
-
-// Fixed, capped column widths (not data-driven) so the total line length is
-// bounded no matter how long a name or city string gets — this is what
-// keeps the table from wrapping/misaligning on a narrow phone screen. Role
-// codes (ZH/RH/SH/RM) are always 2 chars so that column stays tiny.
-var NAME_W_ = 18, ROLE_W_ = 4, CITY_W_ = 16;
+// Hex colors mirror the web app's own role-badge palette, for visual consistency.
+const ROLE_COLORS_ = { ZH: '#1a2b4a', RH: '#3b82f6', SH: '#10b981', RM: '#f59e0b' };
+// A colored dot per zone, purely as a visual anchor in the section header.
+const ZONE_DOTS_ = { North: '🔵', RON: '🟠', South: '🟢', West: '🟣', 'E&C': '🔴' };
 
 /**
- * Builds a plain-text, monospace ASCII table inside a ``` code block —
- * grouped by zone via an in-table sub-header line rather than a 5th column,
- * to keep every row within the fixed width above. dayKey must match the
- * travel plan's own column-key format ('d-MMM', e.g. '4-Aug'); dateLabel is
- * just the human-readable heading shown above the table.
+ * Builds one table row as a real 3-column Card "columns" widget (Role | Name
+ * | City) — a genuine side-by-side layout rather than manually-padded text,
+ * so it stays aligned on any screen size instead of relying on a monospace
+ * font. bold=true is used for the header row.
+ */
+function travelCardRow_(role, name, city, bold) {
+  const wrap = s => (bold ? '<b>' + s + '</b>' : s);
+  return {
+    columns: {
+      columnItems: [
+        { horizontalSizeStyle: 'FILL_MINIMUM_SPACE', widgets: [{ textParagraph: { text: wrap(role) } }] },
+        { horizontalSizeStyle: 'FILL_AVAILABLE_SPACE', widgets: [{ textParagraph: { text: wrap(name) } }] },
+        { horizontalSizeStyle: 'FILL_AVAILABLE_SPACE', widgets: [{ textParagraph: { text: wrap(city) } }] }
+      ]
+    }
+  };
+}
+
+/**
+ * Builds a colored Google Chat Card laid out as a real table (via the
+ * Columns widget) — grouped by zone, with each zone's leaders ordered
+ * ZH -> RH -> SH -> RM. dayKey must match the travel plan's own column-key
+ * format ('d-MMM', e.g. '4-Aug'); dateLabel is the human-readable heading.
  */
 function buildTravelSummaryForDay_(dayKey, dateLabel) {
   const travel = getTravelPlanData_();
@@ -576,33 +589,50 @@ function buildTravelSummaryForDay_(dayKey, dateLabel) {
     const city = (travel.plans[l.id] || {})[dayKey];
     if (city) rows.push({ zone: l.zone, name: l.name, role: l.role, city: city });
   });
-  rows.sort((a, b) => a.zone.localeCompare(b.zone) || a.name.localeCompare(b.name));
+  rows.sort((a, b) =>
+    a.zone.localeCompare(b.zone) ||
+    roleRank_(a.role) - roleRank_(b.role) ||
+    a.name.localeCompare(b.name)
+  );
 
   if (!rows.length) {
-    return { text: '*Field Visit Tracker - Travel Plan*\n' + dateLabel + '\n\nNo leaders have a planned city visit on this day.' };
+    return {
+      count: 0,
+      cardsV2: [{
+        cardId: 'travelSummary-' + dayKey,
+        card: {
+          header: { title: 'Field Visit Tracker', subtitle: 'Travel Plan - ' + dateLabel, imageType: 'CIRCLE' },
+          sections: [{ widgets: [{ textParagraph: { text: 'No leaders have a planned city visit on this day.' } }] }]
+        }
+      }]
+    };
   }
 
-  const totalW = NAME_W_ + ROLE_W_ + CITY_W_ + 2;
-  const lines = [];
-  lines.push(padRight_('NAME', NAME_W_) + ' ' + padRight_('ROLE', ROLE_W_) + ' ' + 'CITY');
-  lines.push('-'.repeat(totalW));
-
-  let currentZone = null;
+  const sections = [];
+  let currentZone = null, currentWidgets = null;
   rows.forEach(r => {
     if (r.zone !== currentZone) {
       currentZone = r.zone;
-      if (lines.length > 2) lines.push('');
-      lines.push('[' + currentZone + ']');
+      currentWidgets = [travelCardRow_('ROLE', 'NAME', 'CITY', true), { divider: {} }];
+      sections.push({ header: (ZONE_DOTS_[r.zone] || '⚪') + ' ' + currentZone, widgets: currentWidgets });
     }
-    lines.push(
-      padRight_(truncate_(r.name, NAME_W_), NAME_W_) + ' ' +
-      padRight_(r.role, ROLE_W_) + ' ' +
-      truncate_(r.city, CITY_W_)
-    );
+    const roleColor = ROLE_COLORS_[r.role] || '#4a5568';
+    currentWidgets.push(travelCardRow_('<font color="' + roleColor + '">' + r.role + '</font>', r.name, r.city, true));
+  });
+  sections.push({
+    widgets: [{ textParagraph: { text: '<font color="#10b981"><b>Total traveling: ' + rows.length + '</b></font>' } }]
   });
 
-  const text = '*Field Visit Tracker - Travel Plan*\n' + dateLabel + '\n```\n' + lines.join('\n') + '\n```\nTotal traveling: ' + rows.length;
-  return { text: text };
+  return {
+    count: rows.length,
+    cardsV2: [{
+      cardId: 'travelSummary-' + dayKey,
+      card: {
+        header: { title: 'Field Visit Tracker', subtitle: 'Travel Plan - ' + dateLabel, imageType: 'CIRCLE' },
+        sections: sections
+      }
+    }]
+  };
 }
 
 function buildTodaysTravelSummary_() {
@@ -618,10 +648,13 @@ function postToChat_(payload) {
     Logger.log('CHAT_WEBHOOK_URL not set — skipping Chat post.');
     return;
   }
+  // Only forward fields the Chat webhook actually understands — "count" is
+  // bookkeeping for our own doPost preview response, not part of the payload.
+  const sendable = payload.cardsV2 ? { cardsV2: payload.cardsV2 } : { text: payload.text };
   const res = UrlFetchApp.fetch(CHAT_WEBHOOK_URL, {
     method: 'post',
     contentType: 'application/json; charset=UTF-8',
-    payload: JSON.stringify(payload),
+    payload: JSON.stringify(sendable),
     muteHttpExceptions: true
   });
   Logger.log('Chat post response: ' + res.getResponseCode() + ' ' + res.getContentText().slice(0, 300));
