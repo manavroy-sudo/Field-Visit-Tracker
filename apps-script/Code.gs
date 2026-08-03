@@ -34,6 +34,10 @@ const LOGIN_HEADERS = ['timestamp', 'emp_id', 'emp_name', 'role', 'zone', 'regio
 const TRAVEL_SHEET_ID = '1wtvnrhCemuwEqHxO_dxhF9NEJ92M3BMV1Gy0zrrCDDg';
 const TRAVEL_TAB_NAME = "Aug'26";
 
+// Google Chat space webhook — posts the daily travel summary. Get this from
+// the space: name/gear icon -> Apps & integrations -> Webhooks -> Add webhook.
+const CHAT_WEBHOOK_URL = 'PASTE_YOUR_CHAT_WEBHOOK_URL_HERE';
+
 // Exact field names written/read for each visit type. Order defines column order.
 const LOCATION_FIELDS = ['location_lat','location_lng','location_distance_km','location_verified'];
 const HEADERS = {
@@ -524,4 +528,84 @@ function updateSummary_(empId, empName) {
   } else {
     sh.getRange(targetRow, 1, 1, rowData.length).setValues([rowData]);
   }
+}
+
+// —————————————————————————————————————————————
+// DAILY TRAVEL SUMMARY — posted to a Google Chat space every morning
+// —————————————————————————————————————————————
+function buildTodaysTravelSummary_() {
+  const travel = getTravelPlanData_();
+  const tz = SpreadsheetApp.openById(TRAVEL_SHEET_ID).getSpreadsheetTimeZone();
+  const now = new Date();
+  const todayKey = Utilities.formatDate(now, tz, 'd-MMM');
+
+  const rows = [];
+  travel.roster.forEach(l => {
+    const city = (travel.plans[l.id] || {})[todayKey];
+    if (city) rows.push({ name: l.name, role: l.role, zone: l.zone, city: city });
+  });
+  rows.sort((a, b) => a.zone.localeCompare(b.zone) || a.name.localeCompare(b.name));
+
+  const dateLabel = Utilities.formatDate(now, tz, 'EEEE, d MMMM yyyy');
+  let text = '*📍 Field Visit Tracker — Today\'s Travel Plan*\n' + dateLabel + '\n';
+
+  if (!rows.length) {
+    text += '\n_No leaders have a planned city visit today._';
+    return text;
+  }
+
+  let currentZone = null;
+  rows.forEach(r => {
+    if (r.zone !== currentZone) {
+      currentZone = r.zone;
+      text += '\n*' + currentZone + '*\n';
+    }
+    text += '• ' + r.name + ' (' + r.role + ') → ' + r.city + '\n';
+  });
+  text += '\nTotal traveling today: ' + rows.length;
+  return text;
+}
+
+function postToChat_(text) {
+  if (!CHAT_WEBHOOK_URL || CHAT_WEBHOOK_URL === 'PASTE_YOUR_CHAT_WEBHOOK_URL_HERE') {
+    Logger.log('CHAT_WEBHOOK_URL not set — skipping Chat post.');
+    return;
+  }
+  const res = UrlFetchApp.fetch(CHAT_WEBHOOK_URL, {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify({ text: text }),
+    muteHttpExceptions: true
+  });
+  Logger.log('Chat post response: ' + res.getResponseCode() + ' ' + res.getContentText().slice(0, 200));
+}
+
+/**
+ * The daily job — install this on a trigger (see setupDailyTravelTrigger)
+ * so it runs automatically, or run it manually any time to send an
+ * on-demand summary of who's traveling where today.
+ */
+function sendDailyTravelSummary() {
+  postToChat_(buildTodaysTravelSummary_());
+}
+
+/**
+ * One-time setup: run this once from the Apps Script editor (select this
+ * function, click Run) to install the daily 10am trigger. Re-running it is
+ * safe — it clears any previous trigger for this function first so you never
+ * end up with duplicates. Apps Script day-timer triggers fire sometime within
+ * the chosen hour, not at an exact minute — and use the PROJECT's time zone
+ * (Project Settings -> General -> Time zone), so make sure that's set to
+ * India Standard Time (Asia/Kolkata) for this to actually mean 10am IST.
+ */
+function setupDailyTravelTrigger() {
+  ScriptApp.getProjectTriggers().forEach(t => {
+    if (t.getHandlerFunction() === 'sendDailyTravelSummary') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('sendDailyTravelSummary')
+    .timeBased()
+    .atHour(10)
+    .everyDays(1)
+    .create();
+  Logger.log('Daily trigger installed for sendDailyTravelSummary (~10am, project time zone).');
 }
