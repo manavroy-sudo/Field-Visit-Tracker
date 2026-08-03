@@ -533,18 +533,13 @@ function updateSummary_(empId, empName) {
 // —————————————————————————————————————————————
 // DAILY TRAVEL SUMMARY — posted to a Google Chat space every morning
 // —————————————————————————————————————————————
-function padRight_(s, w) {
-  s = String(s);
-  return s.length >= w ? s.slice(0, w - 1) + ' ' : s + ' '.repeat(w - s.length);
-}
-
 /**
- * Builds the message as a monospace ASCII table inside a code block (Chat
- * doesn't support real HTML tables, but a code block keeps columns aligned).
- * Deliberately avoids emoji/smart-punctuation — those showed up garbled when
- * sent through the webhook, plain ASCII sidesteps the issue entirely.
+ * Builds a Chat "Card" instead of a padded-text table. Padded monospace
+ * tables don't render reliably on the Chat mobile app (no horizontal scroll,
+ * different font/width) — a Card is Chat's native structured-content format
+ * and lays itself out responsively on both desktop and mobile automatically.
  */
-function buildTodaysTravelSummary_() {
+function buildTodaysTravelCard_() {
   const travel = getTravelPlanData_();
   const tz = SpreadsheetApp.openById(TRAVEL_SHEET_ID).getSpreadsheetTimeZone();
   const now = new Date();
@@ -558,33 +553,42 @@ function buildTodaysTravelSummary_() {
   rows.sort((a, b) => a.zone.localeCompare(b.zone) || a.name.localeCompare(b.name));
 
   const dateLabel = Utilities.formatDate(now, tz, 'EEEE, d MMMM yyyy');
-  let text = '*Field Visit Tracker - Today\'s Travel Plan*\n' + dateLabel + '\n\n';
+  const sections = [];
 
   if (!rows.length) {
-    text += 'No leaders have a planned city visit today.';
-    return text;
+    sections.push({ widgets: [{ decoratedText: { text: 'No leaders have a planned city visit today.' } }] });
+  } else {
+    let currentZone = null, currentWidgets = null;
+    rows.forEach(r => {
+      if (r.zone !== currentZone) {
+        currentZone = r.zone;
+        currentWidgets = [];
+        sections.push({ header: currentZone, widgets: currentWidgets });
+      }
+      currentWidgets.push({
+        decoratedText: {
+          topLabel: r.role,
+          text: '<b>' + r.name + '</b>',
+          bottomLabel: 'City: ' + r.city,
+          wrapText: true
+        }
+      });
+    });
+    sections.push({ widgets: [{ decoratedText: { text: '<b>Total traveling today: ' + rows.length + '</b>' } }] });
   }
 
-  const w = { zone: 8, name: 24, role: 6, city: 16 };
-  rows.forEach(r => {
-    w.zone = Math.max(w.zone, r.zone.length + 1);
-    w.name = Math.max(w.name, r.name.length + 1);
-    w.role = Math.max(w.role, r.role.length + 1);
-    w.city = Math.max(w.city, r.city.length + 1);
-  });
-
-  let table = padRight_('ZONE', w.zone) + padRight_('NAME', w.name) + padRight_('ROLE', w.role) + 'CITY\n';
-  table += '-'.repeat(w.zone + w.name + w.role + w.city) + '\n';
-  rows.forEach(r => {
-    table += padRight_(r.zone, w.zone) + padRight_(r.name, w.name) + padRight_(r.role, w.role) + r.city + '\n';
-  });
-
-  text += '```\n' + table + '```\n';
-  text += 'Total traveling today: ' + rows.length;
-  return text;
+  return {
+    cardsV2: [{
+      cardId: 'dailyTravelSummary-' + Utilities.formatDate(now, tz, 'yyyyMMdd'),
+      card: {
+        header: { title: 'Field Visit Tracker', subtitle: "Today's Travel Plan - " + dateLabel },
+        sections: sections
+      }
+    }]
+  };
 }
 
-function postToChat_(text) {
+function postToChat_(payload) {
   if (!CHAT_WEBHOOK_URL || CHAT_WEBHOOK_URL === 'PASTE_YOUR_CHAT_WEBHOOK_URL_HERE') {
     Logger.log('CHAT_WEBHOOK_URL not set — skipping Chat post.');
     return;
@@ -592,10 +596,10 @@ function postToChat_(text) {
   const res = UrlFetchApp.fetch(CHAT_WEBHOOK_URL, {
     method: 'post',
     contentType: 'application/json',
-    payload: JSON.stringify({ text: text }),
+    payload: JSON.stringify(payload),
     muteHttpExceptions: true
   });
-  Logger.log('Chat post response: ' + res.getResponseCode() + ' ' + res.getContentText().slice(0, 200));
+  Logger.log('Chat post response: ' + res.getResponseCode() + ' ' + res.getContentText().slice(0, 300));
 }
 
 /**
@@ -604,7 +608,7 @@ function postToChat_(text) {
  * on-demand summary of who's traveling where today.
  */
 function sendDailyTravelSummary() {
-  postToChat_(buildTodaysTravelSummary_());
+  postToChat_(buildTodaysTravelCard_());
 }
 
 /**
