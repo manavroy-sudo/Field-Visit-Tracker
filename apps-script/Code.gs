@@ -557,21 +557,28 @@ const ROLE_COLORS_ = { ZH: '#1a2b4a', RH: '#3b82f6', SH: '#10b981', RM: '#f59e0b
 const ZONE_DOTS_ = { North: '🔵', RON: '🟠', South: '🟢', West: '🟣', 'E&C': '🔴' };
 
 /**
- * Builds one leader's row as a decoratedText widget — a location-pin icon
- * plus an explicit "Traveling to: <city>" bottom label, so the destination
- * is always unmistakable on its own (unlike a plain columns table, which can
- * stack into unlabeled lines on a narrow phone screen and lose which value
- * is which).
+ * Builds one leader's row as a 3-column widget — Role | Name | City — with
+ * the destination city sitting in its own column right next to the name,
+ * instead of stacked below it.
  */
 function travelCardRow_(role, name, city) {
   const roleColor = ROLE_COLORS_[role] || '#4a5568';
   return {
-    decoratedText: {
-      icon: { knownIcon: 'MAP_PIN' },
-      topLabel: '<font color="' + roleColor + '"><b>' + role + '</b></font>',
-      text: '<b>' + name + '</b>',
-      bottomLabel: 'Traveling to: <b>' + city + '</b>',
-      wrapText: true
+    columns: {
+      columnItems: [
+        {
+          horizontalSizeStyle: 'FILL_MINIMUM_SPACE',
+          widgets: [{ textParagraph: { text: '<font color="' + roleColor + '"><b>' + role + '</b></font>' } }]
+        },
+        {
+          horizontalSizeStyle: 'FILL_AVAILABLE_SPACE',
+          widgets: [{ textParagraph: { text: '<b>' + name + '</b>' } }]
+        },
+        {
+          horizontalSizeStyle: 'FILL_AVAILABLE_SPACE',
+          widgets: [{ textParagraph: { text: '📍 ' + city } }]
+        }
+      ]
     }
   };
 }
@@ -614,7 +621,7 @@ function buildTravelSummaryForDay_(dayKey, dateLabel) {
   rows.forEach(r => {
     if (r.zone !== currentZone) {
       currentZone = r.zone;
-      currentWidgets = [];
+      currentWidgets = [travelCardRow_('ROLE', 'NAME', 'CITY'), { divider: {} }];
       sections.push({ header: (ZONE_DOTS_[r.zone] || '⚪') + ' ' + currentZone, widgets: currentWidgets });
     }
     currentWidgets.push(travelCardRow_(r.role, r.name, r.city));
