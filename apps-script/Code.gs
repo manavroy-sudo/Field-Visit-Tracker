@@ -533,6 +533,17 @@ function updateSummary_(empId, empName) {
 // —————————————————————————————————————————————
 // DAILY TRAVEL SUMMARY — posted to a Google Chat space every morning
 // —————————————————————————————————————————————
+function padRight_(s, w) {
+  s = String(s);
+  return s.length >= w ? s.slice(0, w - 1) + ' ' : s + ' '.repeat(w - s.length);
+}
+
+/**
+ * Builds the message as a monospace ASCII table inside a code block (Chat
+ * doesn't support real HTML tables, but a code block keeps columns aligned).
+ * Deliberately avoids emoji/smart-punctuation — those showed up garbled when
+ * sent through the webhook, plain ASCII sidesteps the issue entirely.
+ */
 function buildTodaysTravelSummary_() {
   const travel = getTravelPlanData_();
   const tz = SpreadsheetApp.openById(TRAVEL_SHEET_ID).getSpreadsheetTimeZone();
@@ -542,27 +553,34 @@ function buildTodaysTravelSummary_() {
   const rows = [];
   travel.roster.forEach(l => {
     const city = (travel.plans[l.id] || {})[todayKey];
-    if (city) rows.push({ name: l.name, role: l.role, zone: l.zone, city: city });
+    if (city) rows.push({ zone: l.zone, name: l.name, role: l.role, city: city });
   });
   rows.sort((a, b) => a.zone.localeCompare(b.zone) || a.name.localeCompare(b.name));
 
   const dateLabel = Utilities.formatDate(now, tz, 'EEEE, d MMMM yyyy');
-  let text = '*📍 Field Visit Tracker — Today\'s Travel Plan*\n' + dateLabel + '\n';
+  let text = '*Field Visit Tracker - Today\'s Travel Plan*\n' + dateLabel + '\n\n';
 
   if (!rows.length) {
-    text += '\n_No leaders have a planned city visit today._';
+    text += 'No leaders have a planned city visit today.';
     return text;
   }
 
-  let currentZone = null;
+  const w = { zone: 8, name: 24, role: 6, city: 16 };
   rows.forEach(r => {
-    if (r.zone !== currentZone) {
-      currentZone = r.zone;
-      text += '\n*' + currentZone + '*\n';
-    }
-    text += '• ' + r.name + ' (' + r.role + ') → ' + r.city + '\n';
+    w.zone = Math.max(w.zone, r.zone.length + 1);
+    w.name = Math.max(w.name, r.name.length + 1);
+    w.role = Math.max(w.role, r.role.length + 1);
+    w.city = Math.max(w.city, r.city.length + 1);
   });
-  text += '\nTotal traveling today: ' + rows.length;
+
+  let table = padRight_('ZONE', w.zone) + padRight_('NAME', w.name) + padRight_('ROLE', w.role) + 'CITY\n';
+  table += '-'.repeat(w.zone + w.name + w.role + w.city) + '\n';
+  rows.forEach(r => {
+    table += padRight_(r.zone, w.zone) + padRight_(r.name, w.name) + padRight_(r.role, w.role) + r.city + '\n';
+  });
+
+  text += '```\n' + table + '```\n';
+  text += 'Total traveling today: ' + rows.length;
   return text;
 }
 
