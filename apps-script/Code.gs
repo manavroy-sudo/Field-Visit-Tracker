@@ -557,9 +557,12 @@ const ROLE_COLORS_ = { ZH: '#1a2b4a', RH: '#3b82f6', SH: '#10b981', RM: '#f59e0b
 const ZONE_DOTS_ = { North: '🔵', RON: '🟠', South: '🟢', West: '🟣', 'E&C': '🔴' };
 
 /**
- * Builds one leader's row as a 3-column widget — Role | Name | City — with
- * the destination city sitting in its own column right next to the name,
- * instead of stacked below it.
+ * Builds one leader's row as a 2-column widget — [Role + Name] | City. Chat's
+ * Columns widget only reliably keeps 2 columns side-by-side on a phone
+ * screen; a 3rd column gets silently dropped rather than wrapping, which is
+ * why Role/Name/City as 3 separate columns lost the City column on mobile.
+ * Merging Role+Name into one column keeps City guaranteed-visible right
+ * next to the name.
  */
 function travelCardRow_(role, name, city) {
   const roleColor = ROLE_COLORS_[role] || '#4a5568';
@@ -567,12 +570,8 @@ function travelCardRow_(role, name, city) {
     columns: {
       columnItems: [
         {
-          horizontalSizeStyle: 'FILL_MINIMUM_SPACE',
-          widgets: [{ textParagraph: { text: '<font color="' + roleColor + '"><b>' + role + '</b></font>' } }]
-        },
-        {
           horizontalSizeStyle: 'FILL_AVAILABLE_SPACE',
-          widgets: [{ textParagraph: { text: '<b>' + name + '</b>' } }]
+          widgets: [{ textParagraph: { text: '<font color="' + roleColor + '"><b>' + role + '</b></font>&nbsp;&nbsp;<b>' + name + '</b>' } }]
         },
         {
           horizontalSizeStyle: 'FILL_AVAILABLE_SPACE',
