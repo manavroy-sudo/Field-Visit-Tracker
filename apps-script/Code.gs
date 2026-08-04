@@ -34,9 +34,18 @@ const LOGIN_HEADERS = ['timestamp', 'emp_id', 'emp_name', 'role', 'zone', 'regio
 const TRAVEL_SHEET_ID = '1wtvnrhCemuwEqHxO_dxhF9NEJ92M3BMV1Gy0zrrCDDg';
 const TRAVEL_TAB_NAME = "Aug'26";
 
-// Google Chat space webhook — posts the daily travel summary. Get this from
-// the space: name/gear icon -> Apps & integrations -> Webhooks -> Add webhook.
+// Google Chat space webhooks. CHAT_WEBHOOK_URL is the main/production target
+// (the daily 10am trigger posts here); TESTING_WEBHOOK_URL is used only when
+// a doPost caller explicitly passes {target:'testing'}, so new report types
+// can be verified in the Testing space before going out to the real one.
+// Get either from: space name -> Apps & integrations -> Webhooks -> Add webhook.
 const CHAT_WEBHOOK_URL = 'PASTE_YOUR_CHAT_WEBHOOK_URL_HERE';
+const TESTING_WEBHOOK_URL = 'PASTE_YOUR_TESTING_CHAT_WEBHOOK_URL_HERE';
+
+// A separate spreadsheet (not the backend Sheet) that already collects/fetches
+// every visit-form response. Column C holds the leader's full name — counting
+// how many times a name appears there gives that leader's total forms filled.
+const FORM_RESPONSES_SHEET_ID = '1vAI93lXcQetHZtk7wIbqIt-Zf-jG2S8etuN4-jafgyg';
 
 // Exact field names written/read for each visit type. Order defines column order.
 const LOCATION_FIELDS = ['location_lat','location_lng','location_distance_km','location_verified'];
@@ -455,12 +464,21 @@ function doPost(e) {
     // Manual/testing hook: trigger the day-wise travel summary on demand for
     // any specific day (data.day, e.g. '4-Aug') instead of waiting for the
     // 10am trigger. Omit data.day to send today's summary.
+    // data.target: 'testing' posts to TESTING_WEBHOOK_URL instead of the
+    // main CHAT_WEBHOOK_URL — used to verify a new report before it goes out
+    // to the real space. Omit target to send to the main webhook.
     if (data.action === 'sendTravelSummary') {
       const payload = data.day
         ? buildTravelSummaryForDay_(data.day, data.day)
         : buildTodaysTravelSummary_();
-      postToChat_(payload);
+      postToChat_(payload, data.target === 'testing' ? TESTING_WEBHOOK_URL : undefined);
       return json_({ status: 'success', preview: (payload.count || 0) + ' leader(s) traveling' });
+    }
+
+    if (data.action === 'sendFormFillSummary') {
+      const payload = buildFormFillSummaryCard_();
+      postToChat_(payload, data.target === 'testing' ? TESTING_WEBHOOK_URL : undefined);
+      return json_({ status: 'success', preview: (payload.count || 0) + ' leader(s) with responses' });
     }
 
     const type = data.visit_type;
@@ -649,21 +667,134 @@ function buildTodaysTravelSummary_() {
   return buildTravelSummaryForDay_(todayKey, dateLabel);
 }
 
-function postToChat_(payload) {
-  if (!CHAT_WEBHOOK_URL || CHAT_WEBHOOK_URL === 'PASTE_YOUR_CHAT_WEBHOOK_URL_HERE') {
-    Logger.log('CHAT_WEBHOOK_URL not set — skipping Chat post.');
+function postToChat_(payload, webhookUrl) {
+  const target = webhookUrl || CHAT_WEBHOOK_URL;
+  if (!target || target.indexOf('PASTE_YOUR_') === 0) {
+    Logger.log('Chat webhook not set — skipping Chat post.');
     return;
   }
   // Only forward fields the Chat webhook actually understands — "count" is
   // bookkeeping for our own doPost preview response, not part of the payload.
   const sendable = payload.cardsV2 ? { cardsV2: payload.cardsV2 } : { text: payload.text };
-  const res = UrlFetchApp.fetch(CHAT_WEBHOOK_URL, {
+  const res = UrlFetchApp.fetch(target, {
     method: 'post',
     contentType: 'application/json; charset=UTF-8',
     payload: JSON.stringify(sendable),
     muteHttpExceptions: true
   });
   Logger.log('Chat post response: ' + res.getResponseCode() + ' ' + res.getContentText().slice(0, 300));
+}
+
+/**
+ * Reads Column C of the form-responses spreadsheet (one row per submission)
+ * and counts how many times each leader's name appears — that count is how
+ * many forms they've filled so far. Row 1 is assumed to be a header row.
+ */
+function getFormFillCounts_() {
+  const ss = SpreadsheetApp.openById(FORM_RESPONSES_SHEET_ID);
+  const sh = ss.getSheets()[0];
+  const values = sh.getDataRange().getValues();
+  const counts = {};
+  for (let r = 1; r < values.length; r++) {
+    const raw = String(values[r][2] || '').trim(); // Column C
+    if (!raw) continue;
+    const key = normalizeName_(raw);
+    if (!counts[key]) counts[key] = { name: raw, count: 0 };
+    counts[key].count++;
+  }
+  return counts;
+}
+
+/**
+ * Builds one leader's row as a 2-column widget — [Role + Name] | Count —
+ * matching the same layout used for the travel summary.
+ */
+function formFillRow_(role, name, count) {
+  const roleColor = ROLE_COLORS_[role] || '#4a5568';
+  return {
+    columns: {
+      columnItems: [
+        {
+          horizontalSizeStyle: 'FILL_AVAILABLE_SPACE',
+          widgets: [{ textParagraph: { text: '<font color="' + roleColor + '"><b>' + (role || '-') + '</b></font>&nbsp;&nbsp;<b>' + name + '</b>' } }]
+        },
+        {
+          horizontalSizeStyle: 'FILL_AVAILABLE_SPACE',
+          widgets: [{ textParagraph: { text: '📝 ' + count } }]
+        }
+      ]
+    }
+  };
+}
+
+/**
+ * Builds a colored Card — same layout as the travel summary — showing every
+ * leader who appears in the form-responses sheet and how many forms they've
+ * filled so far in total. Grouped by zone (from the live roster) and ordered
+ * ZH -> RH -> SH -> RM within each zone; any name not found on the roster is
+ * grouped under "Other".
+ */
+function buildFormFillSummaryCard_() {
+  const travel = getTravelPlanData_();
+  const roleByName = {}, zoneByName = {};
+  travel.roster.forEach(l => {
+    const key = normalizeName_(l.name);
+    roleByName[key] = l.role;
+    zoneByName[key] = l.zone;
+  });
+
+  const counts = getFormFillCounts_();
+  const rows = Object.keys(counts).map(key => ({
+    name: counts[key].name,
+    count: counts[key].count,
+    role: roleByName[key] || '',
+    zone: zoneByName[key] || 'Other'
+  }));
+  rows.sort((a, b) =>
+    a.zone.localeCompare(b.zone) ||
+    roleRank_(a.role) - roleRank_(b.role) ||
+    a.name.localeCompare(b.name)
+  );
+
+  if (!rows.length) {
+    return {
+      count: 0,
+      cardsV2: [{
+        cardId: 'formFillSummary-' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMddHHmm'),
+        card: {
+          header: { title: 'Field Visit Tracker', subtitle: 'Form Fill Summary', imageType: 'CIRCLE' },
+          sections: [{ widgets: [{ textParagraph: { text: 'No form responses found yet.' } }] }]
+        }
+      }]
+    };
+  }
+
+  const sections = [];
+  let currentZone = null, currentWidgets = null;
+  let totalResponses = 0;
+  rows.forEach(r => {
+    if (r.zone !== currentZone) {
+      currentZone = r.zone;
+      currentWidgets = [formFillRow_('ROLE', 'NAME', 'COUNT'), { divider: {} }];
+      sections.push({ header: (ZONE_DOTS_[r.zone] || '⚪') + ' ' + currentZone, widgets: currentWidgets });
+    }
+    currentWidgets.push(formFillRow_(r.role, r.name, r.count));
+    totalResponses += r.count;
+  });
+  sections.push({
+    widgets: [{ textParagraph: { text: '<font color="#10b981"><b>Total leaders: ' + rows.length + ' | Total responses: ' + totalResponses + '</b></font>' } }]
+  });
+
+  return {
+    count: rows.length,
+    cardsV2: [{
+      cardId: 'formFillSummary-' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMddHHmm'),
+      card: {
+        header: { title: 'Field Visit Tracker', subtitle: 'Form Fill Summary', imageType: 'CIRCLE' },
+        sections: sections
+      }
+    }]
+  };
 }
 
 /**
