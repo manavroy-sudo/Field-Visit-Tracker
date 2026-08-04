@@ -481,6 +481,14 @@ function doPost(e) {
       return json_({ status: 'success', preview: (payload.count || 0) + ' leader(s) with responses' });
     }
 
+    // Installs (or re-installs) both daily triggers: travel summary at 8am
+    // and form-fill summary at 8pm, both in the project's own time zone.
+    if (data.action === 'setupTriggers') {
+      setupDailyTravelTrigger();
+      setupDailyFormFillTrigger();
+      return json_({ status: 'success', msg: 'Daily triggers installed: travel summary ~8am, form-fill summary ~8pm.' });
+    }
+
     const type = data.visit_type;
     if (!TABS[type]) return json_({ status: 'error', msg: 'invalid visit_type' });
     const sh = getSheet_(type);
@@ -798,22 +806,33 @@ function buildFormFillSummaryCard_() {
 }
 
 /**
- * The daily job — install this on a trigger (see setupDailyTravelTrigger)
- * so it runs automatically, or run it manually any time to send an
- * on-demand summary of who's traveling where today.
+ * The daily travel-plan job — install this on a trigger (see
+ * setupDailyTravelTrigger) so it runs automatically, or run it manually any
+ * time to send an on-demand summary of who's traveling where today. Posts to
+ * the main CHAT_WEBHOOK_URL (Agency Warriors).
  */
 function sendDailyTravelSummary() {
   postToChat_(buildTodaysTravelSummary_());
 }
 
 /**
- * One-time setup: run this once from the Apps Script editor (select this
- * function, click Run) to install the daily 10am trigger. Re-running it is
- * safe — it clears any previous trigger for this function first so you never
- * end up with duplicates. Apps Script day-timer triggers fire sometime within
- * the chosen hour, not at an exact minute — and use the PROJECT's time zone
- * (Project Settings -> General -> Time zone), so make sure that's set to
- * India Standard Time (Asia/Kolkata) for this to actually mean 10am IST.
+ * The daily form-fill job — install this on a trigger (see
+ * setupDailyFormFillTrigger) so it runs automatically. Posts to the main
+ * CHAT_WEBHOOK_URL (Agency Warriors).
+ */
+function sendDailyFormFillSummary() {
+  postToChat_(buildFormFillSummaryCard_());
+}
+
+/**
+ * One-time setup: run this once (from the Apps Script editor, or via the
+ * doPost 'setupTriggers' action) to install the daily 8am travel-plan
+ * trigger. Re-running it is safe — it clears any previous trigger for this
+ * function first so you never end up with duplicates. Apps Script
+ * day-timer triggers fire sometime within the chosen hour, not at an exact
+ * minute — and use the PROJECT's time zone (Project Settings -> General ->
+ * Time zone), so make sure that's set to India Standard Time (Asia/Kolkata)
+ * for this to actually mean 8am IST.
  */
 function setupDailyTravelTrigger() {
   ScriptApp.getProjectTriggers().forEach(t => {
@@ -821,8 +840,26 @@ function setupDailyTravelTrigger() {
   });
   ScriptApp.newTrigger('sendDailyTravelSummary')
     .timeBased()
-    .atHour(10)
+    .atHour(8)
     .everyDays(1)
     .create();
-  Logger.log('Daily trigger installed for sendDailyTravelSummary (~10am, project time zone).');
+  Logger.log('Daily trigger installed for sendDailyTravelSummary (~8am, project time zone).');
+}
+
+/**
+ * One-time setup: run this once (from the Apps Script editor, or via the
+ * doPost 'setupTriggers' action) to install the daily 8pm form-fill-summary
+ * trigger. Re-running it is safe — it clears any previous trigger for this
+ * function first. Same project-time-zone caveat as setupDailyTravelTrigger.
+ */
+function setupDailyFormFillTrigger() {
+  ScriptApp.getProjectTriggers().forEach(t => {
+    if (t.getHandlerFunction() === 'sendDailyFormFillSummary') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('sendDailyFormFillSummary')
+    .timeBased()
+    .atHour(20)
+    .everyDays(1)
+    .create();
+  Logger.log('Daily trigger installed for sendDailyFormFillSummary (~8pm, project time zone).');
 }
