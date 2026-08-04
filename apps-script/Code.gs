@@ -714,8 +714,9 @@ function getFormFillCounts_() {
 }
 
 /**
- * Builds one leader's row as a 2-column widget — [Role + Name] | Count —
- * matching the same layout used for the travel summary.
+ * Builds one leader's row as a 2-column widget: Role (its own line) and Name
+ * stacked in column 1, "Form responses so far" count in column 2 — no
+ * emoji, no cramming role+name onto a single wrapping line.
  */
 function formFillRow_(role, name, count) {
   const roleColor = ROLE_COLORS_[role] || '#4a5568';
@@ -724,12 +725,27 @@ function formFillRow_(role, name, count) {
       columnItems: [
         {
           horizontalSizeStyle: 'FILL_AVAILABLE_SPACE',
-          widgets: [{ textParagraph: { text: '<font color="' + roleColor + '"><b>' + (role || '-') + '</b></font>&nbsp;&nbsp;<b>' + name + '</b>' } }]
+          widgets: [
+            { textParagraph: { text: '<font color="' + roleColor + '"><b>' + (role || '-') + '</b></font>' } },
+            { textParagraph: { text: '<b>' + name + '</b>' } }
+          ]
         },
         {
           horizontalSizeStyle: 'FILL_AVAILABLE_SPACE',
-          widgets: [{ textParagraph: { text: '📝 ' + count } }]
+          widgets: [{ textParagraph: { text: String(count) } }]
         }
+      ]
+    }
+  };
+}
+
+/** Header row for the form-fill table — same 2-column shape as the data rows. */
+function formFillHeaderRow_() {
+  return {
+    columns: {
+      columnItems: [
+        { horizontalSizeStyle: 'FILL_AVAILABLE_SPACE', widgets: [{ textParagraph: { text: '<b>ROLE / NAME</b>' } }] },
+        { horizontalSizeStyle: 'FILL_AVAILABLE_SPACE', widgets: [{ textParagraph: { text: '<b>Form Responses So Far</b>' } }] }
       ]
     }
   };
@@ -783,10 +799,11 @@ function buildFormFillSummaryCard_() {
   rows.forEach(r => {
     if (r.zone !== currentZone) {
       currentZone = r.zone;
-      currentWidgets = [formFillRow_('ROLE', 'NAME', 'COUNT'), { divider: {} }];
+      currentWidgets = [formFillHeaderRow_(), { divider: {} }];
       sections.push({ header: (ZONE_DOTS_[r.zone] || '⚪') + ' ' + currentZone, widgets: currentWidgets });
     }
     currentWidgets.push(formFillRow_(r.role, r.name, r.count));
+    currentWidgets.push({ divider: {} });
     totalResponses += r.count;
   });
   sections.push({
