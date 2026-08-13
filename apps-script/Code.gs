@@ -713,13 +713,30 @@ function getFormFillCounts_() {
   return counts;
 }
 
+// Compliance color thresholds — green on track, amber behind, red well behind.
+function complianceColor_(pct) {
+  return pct >= 80 ? '#10b981' : (pct >= 50 ? '#f59e0b' : '#ef4444');
+}
+
 /**
- * Builds one leader's row as a 2-column widget: Role (its own line) and Name
- * stacked in column 1, "Form responses so far" count in column 2 — no
- * emoji, no cramming role+name onto a single wrapping line.
+ * Builds one leader's row as a 2-column widget: Role + Name stacked in
+ * column 1; filled count plus a compliance ratio (filled vs. that leader's
+ * planned visits this month, from the live roster) in column 2, color-coded
+ * so under-performers stand out at a glance instead of a bare number.
  */
-function formFillRow_(role, name, count) {
+function formFillRow_(role, name, filled, planned) {
   const roleColor = ROLE_COLORS_[role] || '#4a5568';
+  const col2Widgets = [{ textParagraph: { text: 'Filled: <b>' + filled + '</b>' } }];
+  if (planned) {
+    const pct = Math.round((filled / planned) * 100);
+    col2Widgets.push({
+      textParagraph: {
+        text: '<font color="' + complianceColor_(pct) + '">Compliance: <b>' + filled + '/' + planned + ' (' + pct + '%)</b></font>'
+      }
+    });
+  } else {
+    col2Widgets.push({ textParagraph: { text: '<font color="#4a5568">Planned count unavailable</font>' } });
+  }
   return {
     columns: {
       columnItems: [
@@ -730,10 +747,7 @@ function formFillRow_(role, name, count) {
             { textParagraph: { text: '<b>' + name + '</b>' } }
           ]
         },
-        {
-          horizontalSizeStyle: 'FILL_AVAILABLE_SPACE',
-          widgets: [{ textParagraph: { text: String(count) } }]
-        }
+        { horizontalSizeStyle: 'FILL_AVAILABLE_SPACE', widgets: col2Widgets }
       ]
     }
   };
@@ -745,7 +759,7 @@ function formFillHeaderRow_() {
     columns: {
       columnItems: [
         { horizontalSizeStyle: 'FILL_AVAILABLE_SPACE', widgets: [{ textParagraph: { text: '<b>ROLE / NAME</b>' } }] },
-        { horizontalSizeStyle: 'FILL_AVAILABLE_SPACE', widgets: [{ textParagraph: { text: '<b>Form Responses So Far</b>' } }] }
+        { horizontalSizeStyle: 'FILL_AVAILABLE_SPACE', widgets: [{ textParagraph: { text: '<b>Filled / Compliance</b>' } }] }
       ]
     }
   };
@@ -753,24 +767,28 @@ function formFillHeaderRow_() {
 
 /**
  * Builds a colored Card — same layout as the travel summary — showing every
- * leader who appears in the form-responses sheet and how many forms they've
- * filled so far in total. Grouped by zone (from the live roster) and ordered
- * ZH -> RH -> SH -> RM within each zone; any name not found on the roster is
- * grouped under "Other".
+ * leader who appears in the form-responses sheet, how many forms they've
+ * filled so far, and their compliance rate against this month's planned
+ * visits (from the live roster), so the report highlights who's on track
+ * and who's falling behind instead of just a raw count. Grouped by zone and
+ * ordered ZH -> RH -> SH -> RM within each zone; any name not found on the
+ * roster is grouped under "Other" with compliance shown as unavailable.
  */
 function buildFormFillSummaryCard_() {
   const travel = getTravelPlanData_();
-  const roleByName = {}, zoneByName = {};
+  const roleByName = {}, zoneByName = {}, plannedByName = {};
   travel.roster.forEach(l => {
     const key = normalizeName_(l.name);
     roleByName[key] = l.role;
     zoneByName[key] = l.zone;
+    plannedByName[key] = l.plan || 0;
   });
 
   const counts = getFormFillCounts_();
   const rows = Object.keys(counts).map(key => ({
     name: counts[key].name,
     count: counts[key].count,
+    planned: plannedByName[key] || 0,
     role: roleByName[key] || '',
     zone: zoneByName[key] || 'Other'
   }));
@@ -802,10 +820,34 @@ function buildFormFillSummaryCard_() {
       currentWidgets = [formFillHeaderRow_(), { divider: {} }];
       sections.push({ header: (ZONE_DOTS_[r.zone] || '⚪') + ' ' + currentZone, widgets: currentWidgets });
     }
-    currentWidgets.push(formFillRow_(r.role, r.name, r.count));
+    currentWidgets.push(formFillRow_(r.role, r.name, r.count, r.planned));
     currentWidgets.push({ divider: {} });
     totalResponses += r.count;
   });
+
+  // Key Insight section: surfaces who's behind and who's leading, instead of
+  // leaving the reader to scan every row themselves for the same signal.
+  const withPlan = rows.filter(r => r.planned > 0).map(r => ({ r: r, pct: Math.round((r.count / r.planned) * 100) }));
+  const behind = withPlan.filter(x => x.pct < 50);
+  const insightWidgets = [{ textParagraph: { text: '<b>Key Insight</b>' } }];
+  if (withPlan.length) {
+    const top = withPlan.reduce((best, x) => (x.pct > best.pct ? x : best), withPlan[0]);
+    insightWidgets.push({
+      textParagraph: { text: '<font color="#10b981">Top performer: <b>' + top.r.name + '</b> (' + top.pct + '% compliance)</font>' }
+    });
+    if (behind.length) {
+      const names = behind.map(x => x.r.name + ' (' + x.pct + '%)').join(', ');
+      insightWidgets.push({
+        textParagraph: { text: '<font color="#ef4444"><b>' + behind.length + ' leader(s) below 50% compliance:</b> ' + names + '</font>' }
+      });
+    } else {
+      insightWidgets.push({ textParagraph: { text: '<font color="#10b981">No leaders below 50% compliance.</font>' } });
+    }
+  } else {
+    insightWidgets.push({ textParagraph: { text: 'Planned-visit data unavailable for matching leaders.' } });
+  }
+  sections.push({ widgets: insightWidgets });
+
   sections.push({
     widgets: [{ textParagraph: { text: '<font color="#10b981"><b>Total leaders: ' + rows.length + ' | Total responses: ' + totalResponses + '</b></font>' } }]
   });
