@@ -1091,7 +1091,12 @@ function padRight2_(val, len) {
  * block instead. Column headers are short but not cryptic (CITIES-P,
  * DAYS-P, etc.) so the table stays narrow enough to hold together.
  */
-function buildDailyOpsTrackerCard_() {
+/**
+ * Gathers the Daily Ops Tracker's rows (one per leader, plan-vs-actual) plus
+ * the report date — the single source of truth consumed by both the Chat
+ * table and the Dashboard sheet, so the two views never drift apart.
+ */
+function getDailyOpsTrackerRows_() {
   const travel = getTravelPlanData_();
   const tz = SpreadsheetApp.openById(TRAVEL_SHEET_ID).getSpreadsheetTimeZone();
   const now = new Date();
@@ -1127,6 +1132,77 @@ function buildDailyOpsTrackerCard_() {
     });
   });
   rows.sort((a, b) => a.zone.localeCompare(b.zone) || roleRank_(a.role) - roleRank_(b.role) || a.name.localeCompare(b.name));
+
+  return { rows: rows, dateLabel: dateLabel };
+}
+
+/**
+ * Writes the same Daily Ops Tracker data into a "Dashboard" tab in the
+ * form-responses spreadsheet, as a real spreadsheet table — not
+ * constrained by Chat's width/column limits. Freezes the Zone and Leader
+ * Name columns so they stay visible while scrolling right through the
+ * metric columns, including on the Sheets mobile app. Re-run each time the
+ * tracker is generated, so it always reflects the latest data.
+ */
+function writeDailyOpsDashboard_(rows, dateLabel) {
+  const ss = SpreadsheetApp.openById(FORM_RESPONSES_SHEET_ID);
+  let sh = ss.getSheetByName('Dashboard');
+  if (!sh) sh = ss.insertSheet('Dashboard');
+  sh.clear();
+
+  const headers = ['Zone', 'Leader Name', 'Role', "Today's Plan", 'Cities Planned (MTD)', 'Days Planned (MTD)', 'Days Actual', 'Forms Filled', 'Partners Met', 'Cities Covered'];
+  const data = [];
+  data.push(['Updated: ' + dateLabel]);
+  data.push(headers);
+
+  const panTotals = newZoneTotals_();
+  rows.forEach(r => addToTotals_(panTotals, r));
+  data.push(['', 'PAN INDIA TOTAL', '', '', panTotals.citiesPlanned, panTotals.daysPlanned, panTotals.daysActual, panTotals.forms, panTotals.partners, panTotals.citiesActual]);
+
+  let currentZone = null, zoneTotals = null;
+  rows.forEach(r => {
+    if (r.zone !== currentZone) {
+      if (currentZone !== null) {
+        data.push(['', 'ZONE TOTAL - ' + currentZone, '', '', zoneTotals.citiesPlanned, zoneTotals.daysPlanned, zoneTotals.daysActual, zoneTotals.forms, zoneTotals.partners, zoneTotals.citiesActual]);
+      }
+      currentZone = r.zone;
+      zoneTotals = newZoneTotals_();
+    }
+    data.push([r.zone, r.name, r.role, r.today, r.citiesPlanned, r.daysPlanned, r.daysActual, r.forms, r.partners, r.citiesActual]);
+    addToTotals_(zoneTotals, r);
+  });
+  if (currentZone !== null) {
+    data.push(['', 'ZONE TOTAL - ' + currentZone, '', '', zoneTotals.citiesPlanned, zoneTotals.daysPlanned, zoneTotals.daysActual, zoneTotals.forms, zoneTotals.partners, zoneTotals.citiesActual]);
+  }
+
+  const maxCols = headers.length;
+  const paddedData = data.map(row => {
+    const r = row.slice();
+    while (r.length < maxCols) r.push('');
+    return r;
+  });
+  sh.getRange(1, 1, paddedData.length, maxCols).setValues(paddedData);
+
+  sh.getRange(1, 1, 1, maxCols).merge();
+  sh.getRange(1, 1, 1, 1).setFontWeight('bold').setFontColor('#4a5568');
+  sh.getRange(2, 1, 1, maxCols).setFontWeight('bold').setBackground('#1a2b4a').setFontColor('#ffffff');
+  sh.getRange(3, 1, 1, maxCols).setFontWeight('bold').setBackground('#d1fae5');
+
+  for (let i = 3; i < paddedData.length; i++) {
+    if (String(paddedData[i][1]).indexOf('ZONE TOTAL') === 0) {
+      sh.getRange(i + 1, 1, 1, maxCols).setFontWeight('bold').setBackground('#e5e7eb');
+    }
+  }
+
+  sh.setFrozenRows(2);
+  sh.setFrozenColumns(2);
+  sh.autoResizeColumns(1, maxCols);
+}
+
+function buildDailyOpsTrackerCard_() {
+  const data = getDailyOpsTrackerRows_();
+  const rows = data.rows, dateLabel = data.dateLabel;
+  writeDailyOpsDashboard_(rows, dateLabel);
 
   const w = { name: 13, today: 8, num: 5 };
   const headerLine = padRight2_('NAME', w.name) + ' ' + padRight2_('TODAY', w.today) + ' ' +
