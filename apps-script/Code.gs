@@ -502,6 +502,12 @@ function doPost(e) {
       return json_({ status: 'success', preview: (payload.count || 0) + ' leader(s) in report' });
     }
 
+    if (data.action === 'sendDailyOpsTracker') {
+      const payload = buildDailyOpsTrackerText_();
+      postToChat_(payload, data.target === 'testing' ? TESTING_WEBHOOK_URL : undefined);
+      return json_({ status: 'success', preview: 'sent' });
+    }
+
     const type = data.visit_type;
     if (!TABS[type]) return json_({ status: 'error', msg: 'invalid visit_type' });
     const sh = getSheet_(type);
@@ -710,7 +716,9 @@ function postToChat_(payload, webhookUrl) {
 // backend's own header list.
 const RESP_COL_TIMESTAMP_ = 1;
 const RESP_COL_NAME_ = 2;
+const RESP_COL_VISIT_DATE_ = 7;  // H
 const RESP_COL_VISIT_TYPE_ = 8;
+const RESP_COL_VISIT_CITY_ = 9;  // J
 const RESP_COL_PARTNER_TYPE_ = 14;   // O: Existing Partner / New Partner
 const RESP_COL_PARTNER_STATUS_ = 17; // R: Active / Inactive (NOT column T, which is Inactive Issues)
 const RESP_COL_ACTIVE_ISSUES_ = 18;  // S
@@ -1004,6 +1012,130 @@ function buildPartnerIntelSummaryCard_() {
       }
     }]
   };
+}
+
+// —————————————————————————————————————————————
+// DAILY OPS TRACKER — a single condensed table: plan vs. actual, per leader
+// —————————————————————————————————————————————
+/**
+ * Reads the Responses sheet once and returns, per leader (matched on
+ * Employee Name): total forms filled (any visit type), Partner Meet count,
+ * the set of distinct visit dates (= actual days travelled), and the set of
+ * distinct visit cities (= actual cities covered) — all "actual" figures
+ * for the Daily Ops Tracker come from here.
+ */
+function getActualTravelStats_() {
+  const ss = SpreadsheetApp.openById(FORM_RESPONSES_SHEET_ID);
+  const sh = ss.getSheetByName('Responses') || ss.getSheets()[0];
+  const lastRow = sh.getLastRow();
+  const stats = {};
+  if (lastRow < 2) return stats;
+  const n = lastRow - 1;
+  const col = idx => sh.getRange(2, idx + 1, n, 1).getValues();
+  const names = col(RESP_COL_NAME_);
+  const visitTypes = col(RESP_COL_VISIT_TYPE_);
+  const visitDates = col(RESP_COL_VISIT_DATE_);
+  const visitCities = col(RESP_COL_VISIT_CITY_);
+  const tz = Session.getScriptTimeZone();
+
+  for (let i = 0; i < n; i++) {
+    const raw = String(names[i][0] || '').trim();
+    if (!raw) continue;
+    const key = normalizeName_(raw);
+    if (!stats[key]) stats[key] = { name: raw, totalForms: 0, partnerMeets: 0, dateSet: new Set(), citySet: new Set() };
+    const rec = stats[key];
+    rec.totalForms++;
+    if (String(visitTypes[i][0] || '').trim() === 'Partner Meet') rec.partnerMeets++;
+
+    const vd = visitDates[i][0];
+    const dateKey = vd instanceof Date && !isNaN(vd.getTime()) ? Utilities.formatDate(vd, tz, 'yyyy-MM-dd') : String(vd || '').trim();
+    if (dateKey) rec.dateSet.add(dateKey);
+
+    const vc = String(visitCities[i][0] || '').trim();
+    if (vc) rec.citySet.add(normalizeCity_(vc));
+  }
+  return stats;
+}
+
+function padRight2_(val, len) {
+  let s = String(val);
+  if (s.length > len) return s.slice(0, len - 1) + '…';
+  while (s.length < len) s += ' ';
+  return s;
+}
+
+/**
+ * Builds a single condensed plan-vs-actual table, one row per leader:
+ * today's planned city, cumulative planned cities/days (from the Aug'26
+ * Travel Plan, up to today's date-of-month), and actual days travelled /
+ * forms filled / partners met / cities covered (from the Responses sheet).
+ * Grouped by zone, ordered ZH -> RH -> SH -> RM within each zone. Sent as a
+ * plain-text monospace table (not a Card) — with 8 data points per leader,
+ * a real table is the only layout that stays scannable.
+ */
+function buildDailyOpsTrackerText_() {
+  const travel = getTravelPlanData_();
+  const tz = SpreadsheetApp.openById(TRAVEL_SHEET_ID).getSpreadsheetTimeZone();
+  const now = new Date();
+  const todayKey = Utilities.formatDate(now, tz, 'd-MMM');
+  const todayDayOfMonth = now.getDate();
+  const dateLabel = Utilities.formatDate(now, tz, 'EEEE, d MMMM yyyy');
+
+  const actual = getActualTravelStats_();
+
+  const NAME_W = 14, TODAY_W = 9, NUM_W = 4;
+  const headerLine = padRight2_('NAME', NAME_W) + ' ' + padRight2_('TODAY', TODAY_W) + ' ' +
+    padRight2_('CP', NUM_W) + ' ' + padRight2_('DP', NUM_W) + ' ' + padRight2_('DA', NUM_W) + ' ' +
+    padRight2_('FORM', NUM_W) + ' ' + padRight2_('PTNR', NUM_W) + ' ' + padRight2_('CITY', NUM_W);
+  const totalW = headerLine.length;
+
+  const rows = [];
+  travel.roster.forEach(l => {
+    const key = normalizeName_(l.name);
+    const dayMap = travel.plans[l.id] || {};
+    let daysPlanned = 0;
+    const citiesPlannedSet = new Set();
+    Object.keys(dayMap).forEach(dk => {
+      const dayNum = parseInt(dk.split('-')[0], 10);
+      if (!isNaN(dayNum) && dayNum <= todayDayOfMonth) {
+        daysPlanned++;
+        citiesPlannedSet.add(normalizeCity_(dayMap[dk]));
+      }
+    });
+    const a = actual[key] || { totalForms: 0, partnerMeets: 0, dateSet: new Set(), citySet: new Set() };
+    rows.push({
+      zone: l.zone, role: l.role, name: l.name,
+      today: dayMap[todayKey] || '-',
+      citiesPlanned: citiesPlannedSet.size,
+      daysPlanned: daysPlanned,
+      daysActual: a.dateSet.size,
+      forms: a.totalForms,
+      partners: a.partnerMeets,
+      citiesActual: a.citySet.size
+    });
+  });
+  rows.sort((a, b) => a.zone.localeCompare(b.zone) || roleRank_(a.role) - roleRank_(b.role) || a.name.localeCompare(b.name));
+
+  const lines = [];
+  let currentZone = null;
+  rows.forEach(r => {
+    if (r.zone !== currentZone) {
+      currentZone = r.zone;
+      if (lines.length) lines.push('');
+      lines.push('[' + currentZone + ']');
+      lines.push(headerLine);
+      lines.push('-'.repeat(totalW));
+    }
+    lines.push(
+      padRight2_(r.name, NAME_W) + ' ' + padRight2_(r.today, TODAY_W) + ' ' +
+      padRight2_(r.citiesPlanned, NUM_W) + ' ' + padRight2_(r.daysPlanned, NUM_W) + ' ' + padRight2_(r.daysActual, NUM_W) + ' ' +
+      padRight2_(r.forms, NUM_W) + ' ' + padRight2_(r.partners, NUM_W) + ' ' + padRight2_(r.citiesActual, NUM_W)
+    );
+  });
+
+  const legend = 'CP=Cities Planned (MTD)  DP=Days Planned (MTD)  DA=Days Actual  FORM=Forms Filled  PTNR=Partners Met  CITY=Cities Covered';
+  const text = '*Field Visit Tracker - Daily Ops Tracker*\nPublished: ' + dateLabel + '\n```\n' + lines.join('\n') + '\n```\n' + legend;
+  return { text: text };
 }
 
 /**
