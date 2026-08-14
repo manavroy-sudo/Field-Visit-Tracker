@@ -489,6 +489,13 @@ function doPost(e) {
       return json_({ status: 'success', msg: 'Daily triggers installed: travel summary ~8am, form-fill summary ~8pm.' });
     }
 
+    // Diagnostic: returns the real distinct values (+counts) for the
+    // categorical columns in the Responses sheet, so bucket categories can
+    // be designed from actual data instead of guesses.
+    if (data.action === 'inspectColumns') {
+      return json_({ status: 'success', columns: inspectResponseColumns_() });
+    }
+
     const type = data.visit_type;
     if (!TABS[type]) return json_({ status: 'error', msg: 'invalid visit_type' });
     const sh = getSheet_(type);
@@ -694,12 +701,55 @@ function postToChat_(payload, webhookUrl) {
 }
 
 // Column indexes in the "Responses" tab (0-based), per the M&H Visit Tracker
-// backend's own header list — Employee Name(C), Visit Type(I), Follow-up
-// Required(AI), Timestamp(B).
+// backend's own header list.
 const RESP_COL_TIMESTAMP_ = 1;
 const RESP_COL_NAME_ = 2;
 const RESP_COL_VISIT_TYPE_ = 8;
+const RESP_COL_PARTNER_TYPE_ = 14;   // O: Existing Partner / New Partner
+const RESP_COL_PARTNER_STATUS_ = 17; // R: Active / Inactive (NOT column T, which is Inactive Issues)
+const RESP_COL_ACTIVE_ISSUES_ = 18;  // S
+const RESP_COL_INACTIVE_ISSUES_ = 19; // T
+const RESP_COL_ACTIVATION_PROB_ = 20; // U
+const RESP_COL_BUSINESS_OPP_ = 21;    // V
+const RESP_COL_SUPPORT_REQUIRED_ = 31; // AF
+const RESP_COL_ACTION_OWNER_ = 33;     // AH
 const RESP_COL_FOLLOWUP_REQUIRED_ = 34;
+
+/**
+ * Diagnostic only: reads a single named column (by its 0-based index) from
+ * the Responses tab and tallies distinct values (splitting on '|' for
+ * multi-select cells), without ever touching the Notes/Photo URLs columns —
+ * those can carry embedded base64 images that make a full-row read huge.
+ * Used to inspect real category values before building bucket logic, so
+ * buckets are grounded in actual data instead of guessed.
+ */
+function tallyColumn_(colIndex) {
+  const ss = SpreadsheetApp.openById(FORM_RESPONSES_SHEET_ID);
+  const sh = ss.getSheetByName('Responses') || ss.getSheets()[0];
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+  const values = sh.getRange(2, colIndex + 1, lastRow - 1, 1).getValues();
+  const counts = {};
+  values.forEach(row => {
+    String(row[0] || '').split('|').map(s => s.trim()).filter(Boolean).forEach(part => {
+      counts[part] = (counts[part] || 0) + 1;
+    });
+  });
+  return Object.keys(counts).map(k => ({ value: k, count: counts[k] })).sort((a, b) => b.count - a.count);
+}
+
+function inspectResponseColumns_() {
+  return {
+    partnerType: tallyColumn_(RESP_COL_PARTNER_TYPE_),
+    partnerStatus: tallyColumn_(RESP_COL_PARTNER_STATUS_),
+    activeIssues: tallyColumn_(RESP_COL_ACTIVE_ISSUES_),
+    inactiveIssues: tallyColumn_(RESP_COL_INACTIVE_ISSUES_),
+    activationProbability: tallyColumn_(RESP_COL_ACTIVATION_PROB_),
+    businessOpportunity: tallyColumn_(RESP_COL_BUSINESS_OPP_),
+    supportRequired: tallyColumn_(RESP_COL_SUPPORT_REQUIRED_),
+    actionOwner: tallyColumn_(RESP_COL_ACTION_OWNER_)
+  };
+}
 
 /**
  * Reads every row of the form-responses spreadsheet's "Responses" tab and
