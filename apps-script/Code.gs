@@ -1183,7 +1183,9 @@ function writeDailyOpsDashboard_(rows, dateLabel) {
   });
   sh.getRange(1, 1, paddedData.length, maxCols).setValues(paddedData);
 
-  sh.getRange(1, 1, 1, maxCols).merge();
+  // Not merged across all columns — a merge spanning outside the frozen
+  // column range throws "can't freeze columns which contain only part of a
+  // merged cell" once setFrozenColumns(2) runs below.
   sh.getRange(1, 1, 1, 1).setFontWeight('bold').setFontColor('#4a5568');
   sh.getRange(2, 1, 1, maxCols).setFontWeight('bold').setBackground('#1a2b4a').setFontColor('#ffffff');
   sh.getRange(3, 1, 1, maxCols).setFontWeight('bold').setBackground('#d1fae5');
