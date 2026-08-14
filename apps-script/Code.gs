@@ -496,6 +496,12 @@ function doPost(e) {
       return json_({ status: 'success', columns: inspectResponseColumns_() });
     }
 
+    if (data.action === 'sendPartnerIntelSummary') {
+      const payload = buildPartnerIntelSummaryCard_();
+      postToChat_(payload, data.target === 'testing' ? TESTING_WEBHOOK_URL : undefined);
+      return json_({ status: 'success', preview: (payload.count || 0) + ' leader(s) in report' });
+    }
+
     const type = data.visit_type;
     if (!TABS[type]) return json_({ status: 'error', msg: 'invalid visit_type' });
     const sh = getSheet_(type);
@@ -748,6 +754,255 @@ function inspectResponseColumns_() {
     businessOpportunity: tallyColumn_(RESP_COL_BUSINESS_OPP_),
     supportRequired: tallyColumn_(RESP_COL_SUPPORT_REQUIRED_),
     actionOwner: tallyColumn_(RESP_COL_ACTION_OWNER_)
+  };
+}
+
+// —————————————————————————————————————————————
+// PARTNER INTELLIGENCE — leader-wise + company-wide partner analytics
+// —————————————————————————————————————————————
+// These mappings were built from the REAL distinct values found in the
+// Responses sheet (via inspectResponseColumns_), not guessed. Active Issues
+// only had 11 distinct values (not 62) as of this analysis — review/update
+// this mapping if new issue strings appear in future responses that aren't
+// covered here (they'll fall into "Other" by default, which is safe but
+// worth periodically re-checking with inspectColumns).
+const ACTIVE_ISSUE_BUCKETS_ = {
+  'Payout': 'Payout & Pricing',
+  'Pricing': 'Payout & Pricing',
+  'Competition': 'Competition & Demand',
+  'Low Customer Demand': 'Competition & Demand',
+  'RM Support': 'Service & Claims',
+  'Claims': 'Service & Claims',
+  'Policy Issuance Delay': 'Service & Claims',
+  'Product Availability': 'Product',
+  'Product Knowledge': 'Product',
+  'Technology': 'Technology'
+  // Anything else (including the literal value "Other") falls into 'Other'.
+};
+
+const INACTIVE_ISSUE_BUCKETS_ = {
+  'No Customer Demand': 'Demand & Seasonality',
+  'Seasonal Business': 'Demand & Seasonality',
+  'Shifted to Competitor': 'Lost to Competitor',
+  'Pricing': 'Pricing & Support',
+  'RM Support': 'Pricing & Support',
+  'Technology': 'Pricing & Support',
+  'Business Closed': 'Closed / Relationship',
+  'Relationship Issue': 'Closed / Relationship'
+};
+
+function bucketOf_(map, rawValue) {
+  return map[rawValue] || 'Other';
+}
+
+/**
+ * Column U (Activation Possibility) turned out to be mostly free-text RM
+ * notes ("Every month 50k business with us...") rather than a clean
+ * High/Medium/Low dropdown — only a handful of rows are literal short
+ * values. Rather than fabricate false precision by guessing sentiment from
+ * prose, this only classifies exact literal matches and buckets everything
+ * else as "Detailed note (unclassified)" — an honest signal that the form
+ * doesn't yet collect this as structured data.
+ */
+function classifyActivationProbability_(raw) {
+  const key = String(raw || '').trim().toLowerCase();
+  if (!key) return 'Not specified';
+  if (key === 'high' || key === 'yes') return 'High';
+  if (key === 'medium' || key === 'slightly') return 'Medium';
+  if (key === 'low' || key === 'no') return 'Low';
+  return 'Detailed note (unclassified)';
+}
+
+function pct_(n, total) { return total ? Math.round((n / total) * 100) : 0; }
+
+function topEntry_(obj) {
+  const keys = Object.keys(obj || {});
+  if (!keys.length) return null;
+  let best = keys[0];
+  keys.forEach(k => { if (obj[k] > obj[best]) best = k; });
+  return { key: best, value: obj[best] };
+}
+
+/**
+ * Reads every Partner Meet row (Team Connect/Insurer Meet rows don't have
+ * partner-level fields, so they're excluded from partner analytics) and
+ * builds both a per-leader breakdown and a company-wide rollup: partner
+ * coverage (existing/new), active/inactive status, issue-category mix,
+ * business opportunity mix, support-category mix, and which internal team
+ * is most needed — everything computed dynamically from current data, not
+ * hardcoded.
+ */
+function getPartnerIntelData_() {
+  const travel = getTravelPlanData_();
+  const roleByName = {}, zoneByName = {};
+  travel.roster.forEach(l => {
+    const key = normalizeName_(l.name);
+    roleByName[key] = l.role;
+    zoneByName[key] = l.zone;
+  });
+
+  const ss = SpreadsheetApp.openById(FORM_RESPONSES_SHEET_ID);
+  const sh = ss.getSheetByName('Responses') || ss.getSheets()[0];
+  const lastRow = sh.getLastRow();
+
+  const leaders = {};
+  const overall = {
+    total: 0, existing: 0, newPartner: 0, active: 0, inactive: 0,
+    issueBuckets: {}, inactiveIssueBuckets: {}, businessOpp: {}, supportBuckets: {},
+    actionOwner: {}, activationProbBuckets: {}
+  };
+
+  function ensureLeader(key, name) {
+    if (!leaders[key]) {
+      leaders[key] = {
+        name: name, role: roleByName[key] || '', zone: zoneByName[key] || 'Other',
+        total: 0, existing: 0, newPartner: 0, active: 0, inactive: 0,
+        issueBuckets: {}, businessOpp: {}, supportBuckets: {}, actionOwner: {}
+      };
+    }
+    return leaders[key];
+  }
+
+  if (lastRow >= 2) {
+    const n = lastRow - 1;
+    const col = idx => sh.getRange(2, idx + 1, n, 1).getValues();
+    const names = col(RESP_COL_NAME_);
+    const visitTypes = col(RESP_COL_VISIT_TYPE_);
+    const partnerTypes = col(RESP_COL_PARTNER_TYPE_);
+    const partnerStatuses = col(RESP_COL_PARTNER_STATUS_);
+    const activeIssues = col(RESP_COL_ACTIVE_ISSUES_);
+    const inactiveIssues = col(RESP_COL_INACTIVE_ISSUES_);
+    const activationProbs = col(RESP_COL_ACTIVATION_PROB_);
+    const businessOpps = col(RESP_COL_BUSINESS_OPP_);
+    const supportReqs = col(RESP_COL_SUPPORT_REQUIRED_);
+    const actionOwners = col(RESP_COL_ACTION_OWNER_);
+
+    for (let i = 0; i < n; i++) {
+      if (String(visitTypes[i][0] || '').trim() !== 'Partner Meet') continue;
+      const rawName = String(names[i][0] || '').trim();
+      if (!rawName) continue;
+      const key = normalizeName_(rawName);
+      const leader = ensureLeader(key, rawName);
+
+      leader.total++; overall.total++;
+
+      const pType = String(partnerTypes[i][0] || '').trim();
+      if (pType === 'Existing Partner') { leader.existing++; overall.existing++; }
+      else if (pType === 'New Partner') { leader.newPartner++; overall.newPartner++; }
+
+      const pStatus = String(partnerStatuses[i][0] || '').trim();
+      const isInactive = pStatus === 'Inactive';
+      if (pStatus === 'Active') { leader.active++; overall.active++; }
+      else if (isInactive) { leader.inactive++; overall.inactive++; }
+
+      String(activeIssues[i][0] || '').split('|').map(s => s.trim()).filter(Boolean).forEach(issue => {
+        const bucket = bucketOf_(ACTIVE_ISSUE_BUCKETS_, issue);
+        leader.issueBuckets[bucket] = (leader.issueBuckets[bucket] || 0) + 1;
+        overall.issueBuckets[bucket] = (overall.issueBuckets[bucket] || 0) + 1;
+      });
+
+      const opp = String(businessOpps[i][0] || '').trim();
+      if (opp) {
+        leader.businessOpp[opp] = (leader.businessOpp[opp] || 0) + 1;
+        overall.businessOpp[opp] = (overall.businessOpp[opp] || 0) + 1;
+      }
+
+      String(supportReqs[i][0] || '').split('|').map(s => s.trim()).filter(Boolean).forEach(sup => {
+        leader.supportBuckets[sup] = (leader.supportBuckets[sup] || 0) + 1;
+        overall.supportBuckets[sup] = (overall.supportBuckets[sup] || 0) + 1;
+      });
+
+      const owner = String(actionOwners[i][0] || '').trim();
+      if (owner) {
+        leader.actionOwner[owner] = (leader.actionOwner[owner] || 0) + 1;
+        overall.actionOwner[owner] = (overall.actionOwner[owner] || 0) + 1;
+      }
+
+      if (isInactive) {
+        String(inactiveIssues[i][0] || '').split('|').map(s => s.trim()).filter(Boolean).forEach(issue => {
+          const bucket = bucketOf_(INACTIVE_ISSUE_BUCKETS_, issue);
+          overall.inactiveIssueBuckets[bucket] = (overall.inactiveIssueBuckets[bucket] || 0) + 1;
+        });
+        const probBucket = classifyActivationProbability_(activationProbs[i][0]);
+        overall.activationProbBuckets[probBucket] = (overall.activationProbBuckets[probBucket] || 0) + 1;
+      }
+    }
+  }
+
+  return { leaders: leaders, overall: overall };
+}
+
+/**
+ * Builds the Partner Intelligence report as a Chat Card: a company-level
+ * overview + dynamic key insights, followed by a condensed leader-wise
+ * breakdown grouped by zone (ordered ZH -> RH -> SH -> RM). Per-leader
+ * detail is intentionally condensed (coverage/status %, top issue, top
+ * support need) rather than the full 6-section breakdown, to keep the card
+ * a manageable size in Chat across many leaders — the same underlying data
+ * (getPartnerIntelData_) has everything needed for a deeper cut if wanted.
+ */
+function buildPartnerIntelSummaryCard_() {
+  const data = getPartnerIntelData_();
+  const overall = data.overall;
+  const sections = [];
+
+  const topIssue = topEntry_(overall.issueBuckets);
+  const topOpp = topEntry_(overall.businessOpp);
+  const topSupport = topEntry_(overall.supportBuckets);
+  const topTeam = topEntry_(overall.actionOwner);
+  const highProb = overall.activationProbBuckets['High'] || 0;
+
+  const overviewWidgets = [
+    { textParagraph: { text: '<b>Company-Level Partner Coverage</b>' } },
+    { textParagraph: { text: 'Partners Met: <b>' + overall.total + '</b>  |  Existing: <b>' + overall.existing + '</b> (' + pct_(overall.existing, overall.total) + '%)  New: <b>' + overall.newPartner + '</b> (' + pct_(overall.newPartner, overall.total) + '%)' } },
+    { textParagraph: { text: 'Active: <font color="#10b981"><b>' + overall.active + '</b></font> (' + pct_(overall.active, overall.total) + '%)  Inactive: <font color="#ef4444"><b>' + overall.inactive + '</b></font> (' + pct_(overall.inactive, overall.total) + '%)' } },
+    { textParagraph: { text: 'Top Problem: <font color="#ef4444"><b>' + (topIssue ? topIssue.key : '-') + '</b></font>' + (topIssue ? ' (' + topIssue.value + ' mentions)' : '') } },
+    { textParagraph: { text: 'Top Business Opportunity: <font color="#10b981"><b>' + (topOpp ? topOpp.key : '-') + '</b></font>' + (topOpp ? ' (' + topOpp.value + ' partners)' : '') } },
+    { textParagraph: { text: 'Top Support Need: <b>' + (topSupport ? topSupport.key : '-') + '</b>  |  Team Most Needed: <b>' + (topTeam ? topTeam.key : '-') + '</b>' } },
+    { textParagraph: { text: '<font color="#4a5568">Reactivation signal (' + overall.inactive + ' inactive partners) — rough, based on RM notes not a dropdown yet: high-confidence mentions = <b>' + highProb + '</b></font>' } }
+  ];
+  sections.push({ header: 'Overview', widgets: overviewWidgets });
+
+  const insightWidgets = [{ textParagraph: { text: '<b>Key Insights</b>' } }];
+  if (overall.total) {
+    insightWidgets.push({ textParagraph: { text: '1. ' + pct_(overall.existing, overall.total) + '% of partners met are existing partners, ' + pct_(overall.newPartner, overall.total) + '% are new.' } });
+    if (topIssue) insightWidgets.push({ textParagraph: { text: '2. <b>' + topIssue.key + '</b> is the most frequent partner problem (' + topIssue.value + ' mentions).' } });
+    if (topTeam) insightWidgets.push({ textParagraph: { text: '3. <b>' + topTeam.key + '</b> carries the highest support load (' + topTeam.value + ' requests).' } });
+    insightWidgets.push({ textParagraph: { text: '4. ' + pct_(overall.inactive, overall.total) + '% of partners met are currently inactive — a reactivation target base of ' + overall.inactive + '.' } });
+  } else {
+    insightWidgets.push({ textParagraph: { text: 'No Partner Meet data found yet.' } });
+  }
+  sections.push({ widgets: insightWidgets });
+
+  const leaders = Object.keys(data.leaders).map(k => data.leaders[k]).sort((a, b) =>
+    a.zone.localeCompare(b.zone) || roleRank_(a.role) - roleRank_(b.role) || a.name.localeCompare(b.name)
+  );
+
+  let currentZone = null, currentWidgets = null;
+  leaders.forEach(l => {
+    if (l.zone !== currentZone) {
+      currentZone = l.zone;
+      currentWidgets = [];
+      sections.push({ header: (ZONE_DOTS_[l.zone] || '⚪') + ' ' + currentZone, widgets: currentWidgets });
+    }
+    const roleColor = ROLE_COLORS_[l.role] || '#4a5568';
+    const lTopIssue = topEntry_(l.issueBuckets);
+    const lTopSupport = topEntry_(l.supportBuckets);
+    currentWidgets.push({ textParagraph: { text: '<font color="' + roleColor + '"><b>' + (l.role || '-') + '</b></font> <b>' + l.name + '</b>' } });
+    currentWidgets.push({ textParagraph: { text: 'Met: <b>' + l.total + '</b> | Existing ' + pct_(l.existing, l.total) + '% / New ' + pct_(l.newPartner, l.total) + '% | Active ' + pct_(l.active, l.total) + '% / Inactive ' + pct_(l.inactive, l.total) + '%' } });
+    currentWidgets.push({ textParagraph: { text: 'Top issue: <b>' + (lTopIssue ? lTopIssue.key : '-') + '</b>  |  Top support need: <b>' + (lTopSupport ? lTopSupport.key : '-') + '</b>' } });
+    currentWidgets.push({ divider: {} });
+  });
+
+  return {
+    count: leaders.length,
+    cardsV2: [{
+      cardId: 'partnerIntel-' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMddHHmm'),
+      card: {
+        header: { title: 'Field Visit Tracker', subtitle: 'Partner Intelligence Summary', imageType: 'CIRCLE' },
+        sections: sections
+      }
+    }]
   };
 }
 
