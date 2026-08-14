@@ -503,9 +503,9 @@ function doPost(e) {
     }
 
     if (data.action === 'sendDailyOpsTracker') {
-      const payload = buildDailyOpsTrackerText_();
+      const payload = buildDailyOpsTrackerCard_();
       postToChat_(payload, data.target === 'testing' ? TESTING_WEBHOOK_URL : undefined);
-      return json_({ status: 'success', preview: 'sent' });
+      return json_({ status: 'success', preview: (payload.count || 0) + ' leader(s) in tracker' });
     }
 
     const type = data.visit_type;
@@ -1057,23 +1057,76 @@ function getActualTravelStats_() {
   return stats;
 }
 
-function padRight2_(val, len) {
-  let s = String(val);
-  if (s.length > len) return s.slice(0, len - 1) + '…';
-  while (s.length < len) s += ' ';
-  return s;
+function newZoneTotals_() {
+  return { citiesPlanned: 0, daysPlanned: 0, daysActual: 0, forms: 0, partners: 0, citiesActual: 0 };
+}
+function addToTotals_(totals, r) {
+  totals.citiesPlanned += r.citiesPlanned;
+  totals.daysPlanned += r.daysPlanned;
+  totals.daysActual += r.daysActual;
+  totals.forms += r.forms;
+  totals.partners += r.partners;
+  totals.citiesActual += r.citiesActual;
+}
+function totalsLine_(label, t, color) {
+  const c = color || '#10b981';
+  return {
+    textParagraph: {
+      text: '<font color="' + c + '"><b>' + label + '</b></font> — Cities Planned: <b>' + t.citiesPlanned +
+        '</b> | Days Planned: <b>' + t.daysPlanned + '</b> | Days Actual: <b>' + t.daysActual +
+        '</b> | Forms Filled: <b>' + t.forms + '</b> | Partners Met: <b>' + t.partners +
+        '</b> | Cities Covered: <b>' + t.citiesActual + '</b>'
+    }
+  };
 }
 
 /**
- * Builds a single condensed plan-vs-actual table, one row per leader:
- * today's planned city, cumulative planned cities/days (from the Aug'26
- * Travel Plan, up to today's date-of-month), and actual days travelled /
- * forms filled / partners met / cities covered (from the Responses sheet).
- * Grouped by zone, ordered ZH -> RH -> SH -> RM within each zone. Sent as a
- * plain-text monospace table (not a Card) — with 8 data points per leader,
- * a real table is the only layout that stays scannable.
+ * Builds one leader's row as a 2-column widget: Role + Name in column 1;
+ * every metric spelled out in full (no abbreviations) as its own line in
+ * column 2 — today's planned city, cumulative cities/days planned
+ * month-to-date, actual days travelled, forms filled, partners met, and
+ * cities covered.
  */
-function buildDailyOpsTrackerText_() {
+function opsTrackerRow_(role, name, r) {
+  const roleColor = ROLE_COLORS_[role] || '#4a5568';
+  return {
+    columns: {
+      columnItems: [
+        {
+          horizontalSizeStyle: 'FILL_AVAILABLE_SPACE',
+          widgets: [
+            { textParagraph: { text: '<font color="' + roleColor + '"><b>' + (role || '-') + '</b></font>' } },
+            { textParagraph: { text: '<b>' + name + '</b>' } }
+          ]
+        },
+        {
+          horizontalSizeStyle: 'FILL_AVAILABLE_SPACE',
+          widgets: [
+            { textParagraph: { text: "Today's Planned City: <b>" + r.today + '</b>' } },
+            { textParagraph: { text: 'Cities Planned (Month to Date): <b>' + r.citiesPlanned + '</b>' } },
+            { textParagraph: { text: 'Days Planned (Month to Date): <b>' + r.daysPlanned + '</b>' } },
+            { textParagraph: { text: 'Days Actually Travelled: <b>' + r.daysActual + '</b>' } },
+            { textParagraph: { text: 'Forms Filled So Far: <b>' + r.forms + '</b>' } },
+            { textParagraph: { text: 'Partners Met So Far: <b>' + r.partners + '</b>' } },
+            { textParagraph: { text: 'Cities Covered So Far: <b>' + r.citiesActual + '</b>' } }
+          ]
+        }
+      ]
+    }
+  };
+}
+
+/**
+ * Builds the Daily Ops Tracker as a colored Card — same visual language as
+ * the other reports (zone-dot section headers, colored role badges, full
+ * word labels, no abbreviations) — with a PAN India total at the top and a
+ * zone total under each zone's leaders. Per leader: today's planned city,
+ * cumulative planned cities/days month-to-date (from the Aug'26 Travel
+ * Plan), and actual days travelled / forms filled / partners met / cities
+ * covered (from the Responses sheet). Grouped by zone, ordered
+ * ZH -> RH -> SH -> RM within each zone.
+ */
+function buildDailyOpsTrackerCard_() {
   const travel = getTravelPlanData_();
   const tz = SpreadsheetApp.openById(TRAVEL_SHEET_ID).getSpreadsheetTimeZone();
   const now = new Date();
@@ -1082,12 +1135,6 @@ function buildDailyOpsTrackerText_() {
   const dateLabel = Utilities.formatDate(now, tz, 'EEEE, d MMMM yyyy');
 
   const actual = getActualTravelStats_();
-
-  const NAME_W = 14, TODAY_W = 9, NUM_W = 4;
-  const headerLine = padRight2_('NAME', NAME_W) + ' ' + padRight2_('TODAY', TODAY_W) + ' ' +
-    padRight2_('CP', NUM_W) + ' ' + padRight2_('DP', NUM_W) + ' ' + padRight2_('DA', NUM_W) + ' ' +
-    padRight2_('FORM', NUM_W) + ' ' + padRight2_('PTNR', NUM_W) + ' ' + padRight2_('CITY', NUM_W);
-  const totalW = headerLine.length;
 
   const rows = [];
   travel.roster.forEach(l => {
@@ -1116,26 +1163,37 @@ function buildDailyOpsTrackerText_() {
   });
   rows.sort((a, b) => a.zone.localeCompare(b.zone) || roleRank_(a.role) - roleRank_(b.role) || a.name.localeCompare(b.name));
 
-  const lines = [];
-  let currentZone = null;
+  const panIndiaTotals = newZoneTotals_();
+  rows.forEach(r => addToTotals_(panIndiaTotals, r));
+
+  const sections = [];
+  sections.push({ header: 'PAN India Total', widgets: [totalsLine_('All Zones', panIndiaTotals)] });
+
+  let currentZone = null, currentWidgets = null, currentZoneTotals = null;
   rows.forEach(r => {
     if (r.zone !== currentZone) {
+      if (currentZone !== null) currentWidgets.push(totalsLine_('Zone Total', currentZoneTotals));
       currentZone = r.zone;
-      if (lines.length) lines.push('');
-      lines.push('[' + currentZone + ']');
-      lines.push(headerLine);
-      lines.push('-'.repeat(totalW));
+      currentZoneTotals = newZoneTotals_();
+      currentWidgets = [];
+      sections.push({ header: (ZONE_DOTS_[r.zone] || '⚪') + ' ' + currentZone, widgets: currentWidgets });
     }
-    lines.push(
-      padRight2_(r.name, NAME_W) + ' ' + padRight2_(r.today, TODAY_W) + ' ' +
-      padRight2_(r.citiesPlanned, NUM_W) + ' ' + padRight2_(r.daysPlanned, NUM_W) + ' ' + padRight2_(r.daysActual, NUM_W) + ' ' +
-      padRight2_(r.forms, NUM_W) + ' ' + padRight2_(r.partners, NUM_W) + ' ' + padRight2_(r.citiesActual, NUM_W)
-    );
+    currentWidgets.push(opsTrackerRow_(r.role, r.name, r));
+    currentWidgets.push({ divider: {} });
+    addToTotals_(currentZoneTotals, r);
   });
+  if (currentWidgets) currentWidgets.push(totalsLine_('Zone Total', currentZoneTotals));
 
-  const legend = 'CP=Cities Planned (MTD)  DP=Days Planned (MTD)  DA=Days Actual  FORM=Forms Filled  PTNR=Partners Met  CITY=Cities Covered';
-  const text = '*Field Visit Tracker - Daily Ops Tracker*\nPublished: ' + dateLabel + '\n```\n' + lines.join('\n') + '\n```\n' + legend;
-  return { text: text };
+  return {
+    count: rows.length,
+    cardsV2: [{
+      cardId: 'dailyOpsTracker-' + Utilities.formatDate(now, tz, 'yyyyMMddHHmm'),
+      card: {
+        header: { title: 'Field Visit Tracker', subtitle: 'Daily Ops Tracker - ' + dateLabel, imageType: 'CIRCLE' },
+        sections: sections
+      }
+    }]
+  };
 }
 
 /**
@@ -1384,12 +1442,15 @@ function sendDailyTravelSummary() {
 }
 
 /**
- * The daily form-fill job — install this on a trigger (see
+ * The daily 8pm job — install this on a trigger (see
  * setupDailyFormFillTrigger) so it runs automatically. Posts to the main
- * CHAT_WEBHOOK_URL (Agency Warriors).
+ * CHAT_WEBHOOK_URL (Agency Warriors). Sends the Daily Ops Tracker (plan vs.
+ * actual, per leader) — this replaced the older Form Fill Summary /
+ * Partner Intelligence report as the 8pm send; those report-builders are
+ * still available for on-demand testing via their own doPost actions.
  */
 function sendDailyFormFillSummary() {
-  postToChat_(buildFormFillSummaryCard_());
+  postToChat_(buildDailyOpsTrackerCard_());
 }
 
 /**
