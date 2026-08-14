@@ -693,38 +693,82 @@ function postToChat_(payload, webhookUrl) {
   Logger.log('Chat post response: ' + res.getResponseCode() + ' ' + res.getContentText().slice(0, 300));
 }
 
+// Column indexes in the "Responses" tab (0-based), per the M&H Visit Tracker
+// backend's own header list — Employee Name(C), Visit Type(I), Follow-up
+// Required(AI), Timestamp(B).
+const RESP_COL_TIMESTAMP_ = 1;
+const RESP_COL_NAME_ = 2;
+const RESP_COL_VISIT_TYPE_ = 8;
+const RESP_COL_FOLLOWUP_REQUIRED_ = 34;
+
 /**
- * Reads Column C of the form-responses spreadsheet (one row per submission)
- * and counts how many times each leader's name appears — that count is how
- * many forms they've filled so far. Row 1 is assumed to be a header row.
+ * Reads every row of the form-responses spreadsheet's "Responses" tab and
+ * aggregates, per leader (matched on Employee Name): total forms filled, a
+ * breakdown by visit type (Partner/Team/Insurer), how many still need
+ * follow-up, and the most recent submission timestamp — so the daily report
+ * can show more than a bare count. Row 1 is assumed to be a header row.
  */
 function getFormFillCounts_() {
   const ss = SpreadsheetApp.openById(FORM_RESPONSES_SHEET_ID);
-  const sh = ss.getSheets()[0];
+  const sh = ss.getSheetByName('Responses') || ss.getSheets()[0];
   const values = sh.getDataRange().getValues();
   const counts = {};
   for (let r = 1; r < values.length; r++) {
-    const raw = String(values[r][2] || '').trim(); // Column C
+    const raw = String(values[r][RESP_COL_NAME_] || '').trim();
     if (!raw) continue;
     const key = normalizeName_(raw);
-    if (!counts[key]) counts[key] = { name: raw, count: 0 };
-    counts[key].count++;
+    if (!counts[key]) {
+      counts[key] = {
+        name: raw, count: 0,
+        byType: { 'Partner Meet': 0, 'Team Connect': 0, 'Insurer Meet': 0 },
+        pendingFollowUps: 0,
+        lastVisitAt: null
+      };
+    }
+    const rec = counts[key];
+    rec.count++;
+
+    const visitType = String(values[r][RESP_COL_VISIT_TYPE_] || '').trim();
+    if (rec.byType.hasOwnProperty(visitType)) rec.byType[visitType]++;
+
+    if (String(values[r][RESP_COL_FOLLOWUP_REQUIRED_] || '').trim() === 'Yes') rec.pendingFollowUps++;
+
+    const ts = values[r][RESP_COL_TIMESTAMP_];
+    const tsDate = ts instanceof Date ? ts : new Date(ts);
+    if (!isNaN(tsDate.getTime()) && (!rec.lastVisitAt || tsDate > rec.lastVisitAt)) rec.lastVisitAt = tsDate;
   }
   return counts;
 }
 
-// Compliance color thresholds — green on track, amber behind, red well behind.
+/** "Today" / "Yesterday" / "N days ago" / "-" for a leader's most recent submission. */
+function daysAgoLabel_(date) {
+  if (!date) return '-';
+  const msPerDay = 24 * 60 * 60 * 1000;
+  const days = Math.floor((new Date().setHours(0, 0, 0, 0) - new Date(date).setHours(0, 0, 0, 0)) / msPerDay);
+  if (days <= 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  return days + ' days ago';
+}
+
+// Compliance/recency color thresholds — green on track, amber behind, red well behind.
 function complianceColor_(pct) {
   return pct >= 80 ? '#10b981' : (pct >= 50 ? '#f59e0b' : '#ef4444');
+}
+function recencyColor_(lastVisitAt) {
+  if (!lastVisitAt) return '#ef4444';
+  const days = Math.floor((new Date().setHours(0, 0, 0, 0) - new Date(lastVisitAt).setHours(0, 0, 0, 0)) / 86400000);
+  return days <= 2 ? '#10b981' : (days <= 6 ? '#f59e0b' : '#ef4444');
 }
 
 /**
  * Builds one leader's row as a 2-column widget: Role + Name stacked in
- * column 1; filled count plus a compliance ratio (filled vs. that leader's
- * planned visits this month, from the live roster) in column 2, color-coded
- * so under-performers stand out at a glance instead of a bare number.
+ * column 1; in column 2 — filled count + compliance (vs. this leader's
+ * planned visits from the roster), a Partner/Team/Insurer breakdown,
+ * pending follow-ups, and how recently they last submitted — so the report
+ * shows workload mix and where the backlog/staleness actually is, not just
+ * a bare count.
  */
-function formFillRow_(role, name, filled, planned) {
+function formFillRow_(role, name, filled, planned, byType, pendingFollowUps, lastVisitAt) {
   const roleColor = ROLE_COLORS_[role] || '#4a5568';
   const col2Widgets = [{ textParagraph: { text: 'Filled: <b>' + filled + '</b>' } }];
   if (planned) {
@@ -736,6 +780,24 @@ function formFillRow_(role, name, filled, planned) {
     });
   } else {
     col2Widgets.push({ textParagraph: { text: '<font color="#4a5568">Planned count unavailable</font>' } });
+  }
+  if (byType) {
+    col2Widgets.push({
+      textParagraph: {
+        text: 'Partner: <b>' + byType['Partner Meet'] + '</b> | Team: <b>' + byType['Team Connect'] + '</b> | Insurer: <b>' + byType['Insurer Meet'] + '</b>'
+      }
+    });
+  }
+  if (pendingFollowUps !== undefined) {
+    const fColor = pendingFollowUps > 0 ? '#ef4444' : '#10b981';
+    col2Widgets.push({
+      textParagraph: { text: '<font color="' + fColor + '">Pending follow-ups: <b>' + pendingFollowUps + '</b></font>' }
+    });
+  }
+  if (lastVisitAt !== undefined) {
+    col2Widgets.push({
+      textParagraph: { text: '<font color="' + recencyColor_(lastVisitAt) + '">Last active: <b>' + daysAgoLabel_(lastVisitAt) + '</b></font>' }
+    });
   }
   return {
     columns: {
@@ -759,7 +821,7 @@ function formFillHeaderRow_() {
     columns: {
       columnItems: [
         { horizontalSizeStyle: 'FILL_AVAILABLE_SPACE', widgets: [{ textParagraph: { text: '<b>ROLE / NAME</b>' } }] },
-        { horizontalSizeStyle: 'FILL_AVAILABLE_SPACE', widgets: [{ textParagraph: { text: '<b>Filled / Compliance</b>' } }] }
+        { horizontalSizeStyle: 'FILL_AVAILABLE_SPACE', widgets: [{ textParagraph: { text: '<b>Activity Summary</b>' } }] }
       ]
     }
   };
@@ -788,6 +850,9 @@ function buildFormFillSummaryCard_() {
   const rows = Object.keys(counts).map(key => ({
     name: counts[key].name,
     count: counts[key].count,
+    byType: counts[key].byType,
+    pendingFollowUps: counts[key].pendingFollowUps,
+    lastVisitAt: counts[key].lastVisitAt,
     planned: plannedByName[key] || 0,
     role: roleByName[key] || '',
     zone: zoneByName[key] || 'Other'
@@ -820,15 +885,17 @@ function buildFormFillSummaryCard_() {
       currentWidgets = [formFillHeaderRow_(), { divider: {} }];
       sections.push({ header: (ZONE_DOTS_[r.zone] || '⚪') + ' ' + currentZone, widgets: currentWidgets });
     }
-    currentWidgets.push(formFillRow_(r.role, r.name, r.count, r.planned));
+    currentWidgets.push(formFillRow_(r.role, r.name, r.count, r.planned, r.byType, r.pendingFollowUps, r.lastVisitAt));
     currentWidgets.push({ divider: {} });
     totalResponses += r.count;
   });
 
-  // Key Insight section: surfaces who's behind and who's leading, instead of
-  // leaving the reader to scan every row themselves for the same signal.
+  // Key Insight section: surfaces who's behind, who's leading, and where the
+  // follow-up backlog actually sits, instead of leaving the reader to scan
+  // every row themselves for the same signal.
   const withPlan = rows.filter(r => r.planned > 0).map(r => ({ r: r, pct: Math.round((r.count / r.planned) * 100) }));
   const behind = withPlan.filter(x => x.pct < 50);
+  const totalPendingFollowUps = rows.reduce((sum, r) => sum + (r.pendingFollowUps || 0), 0);
   const insightWidgets = [{ textParagraph: { text: '<b>Key Insight</b>' } }];
   if (withPlan.length) {
     const top = withPlan.reduce((best, x) => (x.pct > best.pct ? x : best), withPlan[0]);
@@ -842,6 +909,11 @@ function buildFormFillSummaryCard_() {
       });
     } else {
       insightWidgets.push({ textParagraph: { text: '<font color="#10b981">No leaders below 50% compliance.</font>' } });
+    }
+    if (totalPendingFollowUps > 0) {
+      insightWidgets.push({
+        textParagraph: { text: '<font color="#f59e0b"><b>' + totalPendingFollowUps + ' follow-up(s)</b> pending across the team.</font>' }
+      });
     }
   } else {
     insightWidgets.push({ textParagraph: { text: 'Planned-visit data unavailable for matching leaders.' } });
