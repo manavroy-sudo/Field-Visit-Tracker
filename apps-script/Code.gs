@@ -17,6 +17,18 @@
  *    same string you used for API_KEY below.
  */
 
+/**
+ * Run this once from the editor (function dropdown -> authorizeDriveAccess
+ * -> Run) purely to trigger the one-time Drive-permission consent screen.
+ * Does nothing else, so no other error can interfere with the
+ * authorization prompt. Only needed for the experimental
+ * buildDailyOpsTrackerImage_ report, which uploads a rendered PNG to Drive.
+ */
+function authorizeDriveAccess() {
+  const folder = DriveApp.getRootFolder();
+  Logger.log('Drive access OK — root folder name: ' + folder.getName());
+}
+
 const SHEET_ID = '1hD_X7C8_A3E489H-fBCse76rG102OAPdrO9JXeplOnE';
 const API_KEY = 'CHANGE_ME_TO_A_RANDOM_STRING';
 
