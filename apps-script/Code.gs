@@ -807,6 +807,10 @@ const ACTIVE_ISSUE_BUCKETS_ = {
   'Technology': 'Technology'
   // Anything else (including the literal value "Other") falls into 'Other'.
 };
+// The canonical, fixed column order for issue-bucket counts in the
+// Dashboard sheet — every possible bucket name ACTIVE_ISSUE_BUCKETS_ can
+// produce, plus 'Other' for anything unmapped.
+const ACTIVE_ISSUE_BUCKET_NAMES_ = ['Payout & Pricing', 'Competition & Demand', 'Service & Claims', 'Product', 'Technology', 'Other'];
 
 const INACTIVE_ISSUE_BUCKETS_ = {
   'No Customer Demand': 'Demand & Seasonality',
@@ -1092,12 +1096,6 @@ function addToTotals_(totals, r) {
   });
 }
 
-/** Top problem category + total issue mentions for a set of issue buckets. */
-function issueSummary_(buckets) {
-  const top = topEntry_(buckets);
-  const count = Object.keys(buckets || {}).reduce((sum, k) => sum + buckets[k], 0);
-  return { top: top ? top.key : '-', count: count };
-}
 /**
  * Gathers the Daily Ops Tracker's rows (one per leader, plan-vs-actual) plus
  * the report date — the single source of truth consumed by both the Chat
@@ -1163,34 +1161,66 @@ function writeDailyOpsDashboard_(rows, dateLabel) {
   if (!sh) sh = ss.insertSheet('Dashboard');
   sh.clear();
 
-  const headers = ['Zone', 'Leader Name', 'Role', "Today's Plan", 'Cities Planned (MTD)', 'Days Planned (MTD)', 'Days Actual', 'Forms Filled', 'Partners Met', 'Cities Covered', 'Top Problem Faced', 'Issue Count'];
+  const headers = ['Zone', 'Leader Name', 'Role', "Today's Plan", 'Cities Planned (MTD)', 'Days Planned (MTD)', 'Days Actual', 'Planned vs Actual (%)', 'Forms Filled', 'Partners Met', 'Cities Covered'].concat(ACTIVE_ISSUE_BUCKET_NAMES_);
   const data = [];
   data.push(['Field Visit Tracker']);
   data.push(['Updated: ' + dateLabel]);
   data.push(headers);
 
+  // Planned-vs-actual % — blank ("-") when there's no plan yet to compare
+  // against, rather than a misleading 0% or a divide-by-zero.
+  function plannedVsActual_(planned, actualDays) {
+    return planned > 0 ? Math.round((actualDays / planned) * 100) + '%' : '-';
+  }
+  function issueCells_(buckets) {
+    return ACTIVE_ISSUE_BUCKET_NAMES_.map(name => (buckets && buckets[name]) || 0);
+  }
+
   const panTotals = newZoneTotals_();
   rows.forEach(r => addToTotals_(panTotals, r));
-  const panIssues = issueSummary_(panTotals.issueBuckets);
-  data.push(['', 'PAN INDIA TOTAL', '', '', panTotals.citiesPlanned, panTotals.daysPlanned, panTotals.daysActual, panTotals.forms, panTotals.partners, panTotals.citiesActual, panIssues.top, panIssues.count]);
+  data.push(
+    ['', 'PAN INDIA TOTAL', '', '', panTotals.citiesPlanned, panTotals.daysPlanned, panTotals.daysActual,
+      plannedVsActual_(panTotals.daysPlanned, panTotals.daysActual), panTotals.forms, panTotals.partners, panTotals.citiesActual]
+      .concat(issueCells_(panTotals.issueBuckets))
+  );
+
+  // Tracks which sheet row (1-based) belongs to which leader + their
+  // planned-vs-actual ratio, so the two highlight rules below (ZH rows,
+  // <75% actual-vs-planned) can be applied precisely after all rows are
+  // written, without re-deriving this from the raw cell values.
+  const leaderRowInfo = [];
 
   let currentZone = null, zoneTotals = null;
   rows.forEach(r => {
     if (r.zone !== currentZone) {
       if (currentZone !== null) {
-        const zi = issueSummary_(zoneTotals.issueBuckets);
-        data.push(['', 'ZONE TOTAL - ' + currentZone, '', '', zoneTotals.citiesPlanned, zoneTotals.daysPlanned, zoneTotals.daysActual, zoneTotals.forms, zoneTotals.partners, zoneTotals.citiesActual, zi.top, zi.count]);
+        data.push(
+          ['', 'ZONE TOTAL - ' + currentZone, '', '', zoneTotals.citiesPlanned, zoneTotals.daysPlanned, zoneTotals.daysActual,
+            plannedVsActual_(zoneTotals.daysPlanned, zoneTotals.daysActual), zoneTotals.forms, zoneTotals.partners, zoneTotals.citiesActual]
+            .concat(issueCells_(zoneTotals.issueBuckets))
+        );
       }
       currentZone = r.zone;
       zoneTotals = newZoneTotals_();
     }
-    const ri = issueSummary_(r.issueBuckets);
-    data.push([r.zone, r.name, r.role, r.today, r.citiesPlanned, r.daysPlanned, r.daysActual, r.forms, r.partners, r.citiesActual, ri.top, ri.count]);
+    data.push(
+      [r.zone, r.name, r.role, r.today, r.citiesPlanned, r.daysPlanned, r.daysActual,
+        plannedVsActual_(r.daysPlanned, r.daysActual), r.forms, r.partners, r.citiesActual]
+        .concat(issueCells_(r.issueBuckets))
+    );
+    leaderRowInfo.push({
+      sheetRow: data.length, // 1-based row number matches data.length after this push
+      role: r.role,
+      ratio: r.daysPlanned > 0 ? r.daysActual / r.daysPlanned : null
+    });
     addToTotals_(zoneTotals, r);
   });
   if (currentZone !== null) {
-    const zi = issueSummary_(zoneTotals.issueBuckets);
-    data.push(['', 'ZONE TOTAL - ' + currentZone, '', '', zoneTotals.citiesPlanned, zoneTotals.daysPlanned, zoneTotals.daysActual, zoneTotals.forms, zoneTotals.partners, zoneTotals.citiesActual, zi.top, zi.count]);
+    data.push(
+      ['', 'ZONE TOTAL - ' + currentZone, '', '', zoneTotals.citiesPlanned, zoneTotals.daysPlanned, zoneTotals.daysActual,
+        plannedVsActual_(zoneTotals.daysPlanned, zoneTotals.daysActual), zoneTotals.forms, zoneTotals.partners, zoneTotals.citiesActual]
+        .concat(issueCells_(zoneTotals.issueBuckets))
+    );
   }
 
   const maxCols = headers.length;
@@ -1222,6 +1252,23 @@ function writeDailyOpsDashboard_(rows, dateLabel) {
     }
   }
 
+  // ZH rows get a distinct blue-tinted background across the full row, so
+  // Zonal Heads are identifiable at a glance while scanning the sheet.
+  leaderRowInfo.forEach(info => {
+    if (info.role === 'ZH') {
+      sh.getRange(info.sheetRow, 1, 1, maxCols).setBackground('#dbeafe');
+    }
+  });
+  // Leaders whose actual travel days are under 75% of their planned days
+  // get their Name cell flagged in orange — a quick visual cue for
+  // under-performance, layered on top of (and overriding, for just that
+  // one cell) the ZH row color above if both apply.
+  leaderRowInfo.forEach(info => {
+    if (info.ratio !== null && info.ratio < 0.75) {
+      sh.getRange(info.sheetRow, 2, 1, 1).setBackground('#fb923c').setFontColor('#7c2d12').setFontWeight('bold');
+    }
+  });
+
   // Real cell borders — something Chat's plain-text/Card messages can't do
   // at all, but a genuine spreadsheet feature.
   const tableRange = sh.getRange(3, 1, paddedData.length - 2, maxCols);
@@ -1240,9 +1287,8 @@ function writeDailyOpsDashboard_(rows, dateLabel) {
   sh.setColumnWidth(1, 70);
   sh.setColumnWidth(2, 150);
   sh.setColumnWidth(3, 55);
-  for (let c = 4; c <= 10; c++) sh.setColumnWidth(c, 95);
-  sh.setColumnWidth(11, 140); // Top Problem Faced — longer category names
-  sh.setColumnWidth(12, 85); // Issue Count
+  for (let c = 4; c <= 11; c++) sh.setColumnWidth(c, 95);
+  for (let c = 12; c <= maxCols; c++) sh.setColumnWidth(c, 105); // issue-bucket columns
   sh.setRowHeight(3, 42);
 
   // A distinct tab color so the Dashboard is easy to spot among the sheet's
