@@ -1175,86 +1175,81 @@ function writeDailyOpsDashboard_(rows, dateLabel) {
     }
   }
 
+  // Real cell borders — something Chat's plain-text/Card messages can't do
+  // at all, but a genuine spreadsheet feature.
+  sh.getRange(3, 1, paddedData.length - 2, maxCols).setBorder(true, true, true, true, true, true, '#d1d5db', SpreadsheetApp.BorderStyle.SOLID);
+
   sh.setFrozenRows(3);
   sh.setFrozenColumns(2);
   sh.autoResizeColumns(1, maxCols);
+  return 'https://docs.google.com/spreadsheets/d/' + FORM_RESPONSES_SHEET_ID + '/edit#gid=' + sh.getSheetId();
 }
 
-function padRight2_(val, len) {
-  let s = String(val);
-  if (s.length > len) return s.slice(0, len - 1) + '…';
-  while (s.length < len) s += ' ';
-  return s;
+/**
+ * A colored, bold totals line — full word labels, no abbreviations.
+ * Used for both the PAN India total and each zone's total.
+ */
+function opsTotalsWidget_(label, t, color) {
+  const c = color || '#10b981';
+  return {
+    textParagraph: {
+      text: '<font color="' + c + '"><b>' + label + '</b></font> — Cities Planned: <b>' + t.citiesPlanned +
+        '</b> | Days Planned: <b>' + t.daysPlanned + '</b> | Days Actual: <b>' + t.daysActual +
+        '</b> | Forms Filled: <b>' + t.forms + '</b> | Partners Met: <b>' + t.partners +
+        '</b> | Cities Covered: <b>' + t.citiesActual + '</b>'
+    }
+  };
 }
 
-// Clear, short (not cryptic) header words — a real header row printed once
-// per zone, not repeated per leader. Chat Cards can't reliably show more
-// than 2 columns side-by-side on a phone (confirmed twice with real
-// devices), so a genuine multi-column table with one header row has to be
-// a monospace ``` block — the same structure the Dashboard sheet already
-// uses, just plain text.
-const OPS_TRACKER_COLS_ = [
-  { key: 'name', label: 'NAME', w: 14 },
-  { key: 'today', label: 'TODAY', w: 10 },
-  { key: 'citiesPlanned', label: 'CITY PLAN', w: 10 },
-  { key: 'daysPlanned', label: 'DAYS PLAN', w: 10 },
-  { key: 'daysActual', label: 'DAYS DONE', w: 10 },
-  { key: 'forms', label: 'FORMS', w: 6 },
-  { key: 'partners', label: 'PARTNERS', w: 9 },
-  { key: 'citiesActual', label: 'CITY DONE', w: 10 }
-];
-
-function opsTrackerHeaderLine_() {
-  return OPS_TRACKER_COLS_.map(c => padRight2_(c.label, c.w)).join(' ');
-}
-function opsTrackerDataLine_(r) {
-  return OPS_TRACKER_COLS_.map(c => padRight2_(r[c.key], c.w)).join(' ');
-}
-function opsTrackerTotalsLine_(label, t) {
-  return padRight2_(label, OPS_TRACKER_COLS_[0].w + OPS_TRACKER_COLS_[1].w + 1) + ' ' +
-    OPS_TRACKER_COLS_.slice(2).map(c => padRight2_(t[c.key], c.w)).join(' ');
-}
-
+/**
+ * The Chat message stays a short, colored summary — PAN India total plus
+ * one line per zone, with a button straight to the Dashboard sheet for the
+ * full leader-wise breakdown. Chat can't render a real bordered/colored
+ * multi-column table, and the Dashboard sheet already does that properly
+ * (real borders, colors, frozen rows/columns, unlimited width) — so this
+ * message doesn't try to duplicate it, just points to it.
+ */
 function buildDailyOpsTrackerCard_() {
   const data = getDailyOpsTrackerRows_();
   const rows = data.rows, dateLabel = data.dateLabel;
-  writeDailyOpsDashboard_(rows, dateLabel);
-
-  const headerLine = opsTrackerHeaderLine_();
-  const totalW = headerLine.length;
+  const dashboardUrl = writeDailyOpsDashboard_(rows, dateLabel);
 
   const panIndiaTotals = newZoneTotals_();
   rows.forEach(r => addToTotals_(panIndiaTotals, r));
 
-  const lines = [];
-  lines.push('PAN INDIA TOTAL');
-  lines.push(opsTrackerTotalsLine_('All Zones', panIndiaTotals));
-  lines.push('');
+  const sections = [];
+  sections.push({ header: 'PAN India Total', widgets: [opsTotalsWidget_('All Zones', panIndiaTotals)] });
 
+  const zoneWidgets = [];
   let currentZone = null, currentZoneTotals = null;
   rows.forEach(r => {
     if (r.zone !== currentZone) {
-      if (currentZone !== null) {
-        lines.push('-'.repeat(totalW));
-        lines.push(opsTrackerTotalsLine_('Zone Total', currentZoneTotals));
-        lines.push('');
-      }
+      if (currentZone !== null) zoneWidgets.push(opsTotalsWidget_((ZONE_DOTS_[currentZone] || '⚪') + ' ' + currentZone, currentZoneTotals));
       currentZone = r.zone;
       currentZoneTotals = newZoneTotals_();
-      lines.push('[' + currentZone + ']');
-      lines.push(headerLine);
-      lines.push('-'.repeat(totalW));
     }
-    lines.push(opsTrackerDataLine_(r));
     addToTotals_(currentZoneTotals, r);
   });
-  if (currentZone !== null) {
-    lines.push('-'.repeat(totalW));
-    lines.push(opsTrackerTotalsLine_('Zone Total', currentZoneTotals));
-  }
+  if (currentZone !== null) zoneWidgets.push(opsTotalsWidget_((ZONE_DOTS_[currentZone] || '⚪') + ' ' + currentZone, currentZoneTotals));
+  sections.push({ header: 'Zone Totals', widgets: zoneWidgets });
 
-  const text = '*Field Visit Tracker*\nPublished: ' + dateLabel + '\n```\n' + lines.join('\n') + '\n```';
-  return { count: rows.length, text: text };
+  sections.push({
+    widgets: [
+      { textParagraph: { text: 'Full leader-wise breakdown (with real colors, borders, and frozen columns) is in the Dashboard sheet.' } },
+      { buttonList: { buttons: [{ text: 'Open Dashboard', onClick: { openLink: { url: dashboardUrl } } }] } }
+    ]
+  });
+
+  return {
+    count: rows.length,
+    cardsV2: [{
+      cardId: 'dailyOpsTracker-' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMddHHmm'),
+      card: {
+        header: { title: 'Field Visit Tracker', subtitle: 'Published: ' + dateLabel, imageType: 'CIRCLE' },
+        sections: sections
+      }
+    }]
+  };
 }
 
 /**
