@@ -1247,7 +1247,7 @@ function buildDailyOpsTrackerCard_() {
   }
 
   const legend = 'CITYP=Cities Planned MTD  DAYSP=Days Planned MTD  DAYSA=Days Actually Travelled  FORMS=Forms Filled  PTNRS=Partners Met  CITYA=Cities Covered (Actual)';
-  const text = '*Field Visit Tracker - Daily Ops Tracker*\nPublished: ' + dateLabel + '\n```\n' + lines.join('\n') + '\n```\n' + legend;
+  const text = '*Field Visit Tracker*\nPublished: ' + dateLabel + '\n```\n' + lines.join('\n') + '\n```\n' + legend;
   return { count: rows.length, text: text };
 }
 
