@@ -1347,28 +1347,32 @@ function buildDailyOpsTrackerImage_() {
   const headers = ['Zone', 'Leader Name', 'Role', "Today's Plan", 'Cities Planned (MTD)', 'Days Planned (MTD)', 'Days Actual', 'Forms Filled', 'Partners Met', 'Cities Covered'];
   const dataTable = Charts.newDataTable();
   headers.forEach(h => dataTable.addColumn(Charts.ColumnType.STRING, h));
+  let rowCount = 0;
 
   const panTotals = newZoneTotals_();
   rows.forEach(r => addToTotals_(panTotals, r));
   dataTable.addRow(['', 'PAN INDIA TOTAL', '', '', String(panTotals.citiesPlanned), String(panTotals.daysPlanned), String(panTotals.daysActual), String(panTotals.forms), String(panTotals.partners), String(panTotals.citiesActual)]);
+  rowCount++;
 
   let currentZone = null, zoneTotals = null;
   rows.forEach(r => {
     if (r.zone !== currentZone) {
       if (currentZone !== null) {
         dataTable.addRow(['', 'ZONE TOTAL - ' + currentZone, '', '', String(zoneTotals.citiesPlanned), String(zoneTotals.daysPlanned), String(zoneTotals.daysActual), String(zoneTotals.forms), String(zoneTotals.partners), String(zoneTotals.citiesActual)]);
+        rowCount++;
       }
       currentZone = r.zone;
       zoneTotals = newZoneTotals_();
     }
     dataTable.addRow([r.zone, r.name, r.role, r.today, String(r.citiesPlanned), String(r.daysPlanned), String(r.daysActual), String(r.forms), String(r.partners), String(r.citiesActual)]);
+    rowCount++;
     addToTotals_(zoneTotals, r);
   });
   if (currentZone !== null) {
     dataTable.addRow(['', 'ZONE TOTAL - ' + currentZone, '', '', String(zoneTotals.citiesPlanned), String(zoneTotals.daysPlanned), String(zoneTotals.daysActual), String(zoneTotals.forms), String(zoneTotals.partners), String(zoneTotals.citiesActual)]);
+    rowCount++;
   }
 
-  const rowCount = dataTable.getNumberOfRows();
   const chart = Charts.newTableChart()
     .setDataTable(dataTable)
     .setDimensions(920, 40 + (rowCount + 1) * 28)
