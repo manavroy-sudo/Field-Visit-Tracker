@@ -1152,6 +1152,7 @@ function writeDailyOpsDashboard_(rows, dateLabel) {
 
   const headers = ['Zone', 'Leader Name', 'Role', "Today's Plan", 'Cities Planned (MTD)', 'Days Planned (MTD)', 'Days Actual', 'Forms Filled', 'Partners Met', 'Cities Covered'];
   const data = [];
+  data.push(['Field Visit Tracker']);
   data.push(['Updated: ' + dateLabel]);
   data.push(headers);
 
@@ -1186,17 +1187,18 @@ function writeDailyOpsDashboard_(rows, dateLabel) {
   // Not merged across all columns — a merge spanning outside the frozen
   // column range throws "can't freeze columns which contain only part of a
   // merged cell" once setFrozenColumns(2) runs below.
-  sh.getRange(1, 1, 1, 1).setFontWeight('bold').setFontColor('#4a5568');
-  sh.getRange(2, 1, 1, maxCols).setFontWeight('bold').setBackground('#1a2b4a').setFontColor('#ffffff');
-  sh.getRange(3, 1, 1, maxCols).setFontWeight('bold').setBackground('#d1fae5');
+  sh.getRange(1, 1, 1, 1).setFontWeight('bold').setFontSize(14).setFontColor('#1a2b4a');
+  sh.getRange(2, 1, 1, 1).setFontWeight('bold').setFontColor('#4a5568');
+  sh.getRange(3, 1, 1, maxCols).setFontWeight('bold').setBackground('#1a2b4a').setFontColor('#ffffff');
+  sh.getRange(4, 1, 1, maxCols).setFontWeight('bold').setBackground('#d1fae5');
 
-  for (let i = 3; i < paddedData.length; i++) {
+  for (let i = 4; i < paddedData.length; i++) {
     if (String(paddedData[i][1]).indexOf('ZONE TOTAL') === 0) {
       sh.getRange(i + 1, 1, 1, maxCols).setFontWeight('bold').setBackground('#e5e7eb');
     }
   }
 
-  sh.setFrozenRows(2);
+  sh.setFrozenRows(3);
   sh.setFrozenColumns(2);
   sh.autoResizeColumns(1, maxCols);
 }
