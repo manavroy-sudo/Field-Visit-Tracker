@@ -1178,10 +1178,24 @@ function writeDailyOpsDashboard_(rows, dateLabel) {
   // Real cell borders — something Chat's plain-text/Card messages can't do
   // at all, but a genuine spreadsheet feature.
   sh.getRange(3, 1, paddedData.length - 2, maxCols).setBorder(true, true, true, true, true, true, '#d1d5db', SpreadsheetApp.BorderStyle.SOLID);
+  // A thicker line specifically under the header row, so it's visually
+  // distinct from the numbers below it.
+  sh.getRange(3, 1, 1, maxCols).setBorder(null, null, true, null, null, null, '#1a2b4a', SpreadsheetApp.BorderStyle.SOLID_THICK);
+
+  // Header text wraps onto a 2nd line inside the same cell ("Cities
+  // Planned" / "(MTD)") instead of overflowing, and everything is centered
+  // (both horizontally and vertically) for a cleaner, more deliberate look.
+  sh.getRange(3, 1, 1, maxCols).setWrap(true).setHorizontalAlignment('center').setVerticalAlignment('middle');
+  sh.getRange(4, 1, paddedData.length - 3, maxCols).setHorizontalAlignment('center').setVerticalAlignment('middle');
+
+  sh.setColumnWidth(1, 70);
+  sh.setColumnWidth(2, 150);
+  sh.setColumnWidth(3, 55);
+  for (let c = 4; c <= maxCols; c++) sh.setColumnWidth(c, 95);
+  sh.setRowHeight(3, 42);
 
   sh.setFrozenRows(3);
   sh.setFrozenColumns(2);
-  sh.autoResizeColumns(1, maxCols);
   return 'https://docs.google.com/spreadsheets/d/' + FORM_RESPONSES_SHEET_ID + '/edit#gid=' + sh.getSheetId();
 }
 
