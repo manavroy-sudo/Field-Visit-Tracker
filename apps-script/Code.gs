@@ -508,6 +508,14 @@ function doPost(e) {
       return json_({ status: 'success', preview: (payload.count || 0) + ' leader(s) in tracker' });
     }
 
+    // Experimental image-based alternative — see buildDailyOpsTrackerImage_.
+    // Not wired into the 8pm trigger; test-only until confirmed reliable.
+    if (data.action === 'sendDailyOpsTrackerImage') {
+      const payload = buildDailyOpsTrackerImage_();
+      postToChat_(payload, data.target === 'testing' ? TESTING_WEBHOOK_URL : undefined);
+      return json_({ status: 'success', preview: (payload.count || 0) + ' leader(s) in tracker image' });
+    }
+
     const type = data.visit_type;
     if (!TABS[type]) return json_({ status: 'error', msg: 'invalid visit_type' });
     const sh = getSheet_(type);
@@ -1314,6 +1322,79 @@ function buildDailyOpsTrackerCard_() {
       card: {
         header: { title: 'Field Visit Tracker', subtitle: 'Published: ' + dateLabel, imageType: 'CIRCLE' },
         sections: sections
+      }
+    }]
+  };
+}
+
+/**
+ * EXPERIMENTAL alternative: renders the tracker as an actual image (via
+ * Apps Script's Charts service TableChart, which can produce a real PNG of
+ * a data table server-side — alternating row shading, real borders, real
+ * grid), uploads it to Drive with link-view access, and embeds that image
+ * directly in the Chat card. This is the only way to get a literal
+ * bordered/shaded table INSIDE Chat itself, but it's not a fully supported
+ * path: it depends on Drive's "uc?export=view" direct-image-link trick,
+ * which Google could change or restrict without notice, and the image is
+ * static (won't update without re-sending). If this doesn't render
+ * reliably, fall back to buildDailyOpsTrackerCard_ instead.
+ */
+function buildDailyOpsTrackerImage_() {
+  const data = getDailyOpsTrackerRows_();
+  const rows = data.rows, dateLabel = data.dateLabel;
+  const dashboardUrl = writeDailyOpsDashboard_(rows, dateLabel);
+
+  const headers = ['Zone', 'Leader Name', 'Role', "Today's Plan", 'Cities Planned (MTD)', 'Days Planned (MTD)', 'Days Actual', 'Forms Filled', 'Partners Met', 'Cities Covered'];
+  const dataTable = Charts.newDataTable();
+  headers.forEach(h => dataTable.addColumn(Charts.ColumnType.STRING, h));
+
+  const panTotals = newZoneTotals_();
+  rows.forEach(r => addToTotals_(panTotals, r));
+  dataTable.addRow(['', 'PAN INDIA TOTAL', '', '', String(panTotals.citiesPlanned), String(panTotals.daysPlanned), String(panTotals.daysActual), String(panTotals.forms), String(panTotals.partners), String(panTotals.citiesActual)]);
+
+  let currentZone = null, zoneTotals = null;
+  rows.forEach(r => {
+    if (r.zone !== currentZone) {
+      if (currentZone !== null) {
+        dataTable.addRow(['', 'ZONE TOTAL - ' + currentZone, '', '', String(zoneTotals.citiesPlanned), String(zoneTotals.daysPlanned), String(zoneTotals.daysActual), String(zoneTotals.forms), String(zoneTotals.partners), String(zoneTotals.citiesActual)]);
+      }
+      currentZone = r.zone;
+      zoneTotals = newZoneTotals_();
+    }
+    dataTable.addRow([r.zone, r.name, r.role, r.today, String(r.citiesPlanned), String(r.daysPlanned), String(r.daysActual), String(r.forms), String(r.partners), String(r.citiesActual)]);
+    addToTotals_(zoneTotals, r);
+  });
+  if (currentZone !== null) {
+    dataTable.addRow(['', 'ZONE TOTAL - ' + currentZone, '', '', String(zoneTotals.citiesPlanned), String(zoneTotals.daysPlanned), String(zoneTotals.daysActual), String(zoneTotals.forms), String(zoneTotals.partners), String(zoneTotals.citiesActual)]);
+  }
+
+  const rowCount = dataTable.getNumberOfRows();
+  const chart = Charts.newTableChart()
+    .setDataTable(dataTable)
+    .setDimensions(920, 40 + (rowCount + 1) * 28)
+    .setOption('alternatingRowStyle', true)
+    .build();
+
+  const blob = chart.getAs('image/png').setName('daily-ops-tracker-' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd-HHmm') + '.png');
+  const file = DriveApp.createFile(blob);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  const imageUrl = 'https://drive.google.com/uc?export=view&id=' + file.getId();
+
+  return {
+    count: rows.length,
+    cardsV2: [{
+      cardId: 'dailyOpsTrackerImage-' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMddHHmm'),
+      card: {
+        header: { title: 'Field Visit Tracker', subtitle: 'Published: ' + dateLabel, imageType: 'CIRCLE' },
+        sections: [
+          { widgets: [{ image: { imageUrl: imageUrl } }] },
+          {
+            widgets: [
+              { textParagraph: { text: 'This is a static snapshot image. The Dashboard sheet is always the live, up-to-date version.' } },
+              { buttonList: { buttons: [{ text: 'Open Dashboard', onClick: { openLink: { url: dashboardUrl } } }] } }
+            ]
+          }
+        ]
       }
     }]
   };
