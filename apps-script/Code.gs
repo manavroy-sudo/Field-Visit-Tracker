@@ -1068,29 +1068,6 @@ function addToTotals_(totals, r) {
   totals.partners += r.partners;
   totals.citiesActual += r.citiesActual;
 }
-function totalsRow_(label, t, w) {
-  return padRight2_(label, w.name + w.today + 1) + ' ' +
-    padRight2_(t.citiesPlanned, w.num) + ' ' + padRight2_(t.daysPlanned, w.num) + ' ' + padRight2_(t.daysActual, w.num) + ' ' +
-    padRight2_(t.forms, w.num) + ' ' + padRight2_(t.partners, w.num) + ' ' + padRight2_(t.citiesActual, w.num);
-}
-
-function padRight2_(val, len) {
-  let s = String(val);
-  if (s.length > len) return s.slice(0, len - 1) + '…';
-  while (s.length < len) s += ' ';
-  return s;
-}
-
-/**
- * Builds the Daily Ops Tracker as a real monospace table — one header row,
- * one compact line per leader (no repeated labels per row), a PAN India
- * total at the top, and a zone total under each zone. Sent as plain text
- * (not a Card): Chat's Columns widget only reliably keeps 2 columns
- * side-by-side on a phone screen — a 3rd silently vanishes rather than
- * wrapping — so a genuine multi-column data table needs a monospace ```
- * block instead. Column headers are short but not cryptic (CITIES-P,
- * DAYS-P, etc.) so the table stays narrow enough to hold together.
- */
 /**
  * Gathers the Daily Ops Tracker's rows (one per leader, plan-vs-actual) plus
  * the report date — the single source of truth consumed by both the Chat
@@ -1203,54 +1180,87 @@ function writeDailyOpsDashboard_(rows, dateLabel) {
   sh.autoResizeColumns(1, maxCols);
 }
 
+// Full, clear column labels — no abbreviations like "CP"/"DAYSP" that read
+// as cryptic. This report deliberately does not worry about narrow-phone
+// column limits (per explicit instruction): every metric gets its own
+// column even though Chat's Columns widget may not keep all of them
+// side-by-side on the narrowest screens.
+const OPS_TRACKER_LABELS_ = ['Role', 'Name', "Today's City", 'Cities Planned (MTD)', 'Days Planned (MTD)', 'Days Actual', 'Forms Filled', 'Partners Met', 'Cities Covered'];
+
+function opsColumnsRow_(cellTexts) {
+  return {
+    columns: {
+      columnItems: cellTexts.map(text => ({
+        horizontalSizeStyle: 'FILL_AVAILABLE_SPACE',
+        widgets: [{ textParagraph: { text: text } }]
+      }))
+    }
+  };
+}
+
+function opsTrackerHeaderRow_() {
+  return opsColumnsRow_(OPS_TRACKER_LABELS_.map(l => '<b>' + l + '</b>'));
+}
+
+function opsTrackerDataRow_(r) {
+  const roleColor = ROLE_COLORS_[r.role] || '#4a5568';
+  return opsColumnsRow_([
+    '<font color="' + roleColor + '"><b>' + (r.role || '-') + '</b></font>',
+    '<b>' + r.name + '</b>',
+    '📍 ' + r.today,
+    String(r.citiesPlanned),
+    String(r.daysPlanned),
+    String(r.daysActual),
+    String(r.forms),
+    String(r.partners),
+    String(r.citiesActual)
+  ]);
+}
+
+function opsTrackerTotalsRow_(label, t, color) {
+  const c = color || '#10b981';
+  return opsColumnsRow_([
+    '', '<font color="' + c + '"><b>' + label + '</b></font>', '',
+    String(t.citiesPlanned), String(t.daysPlanned), String(t.daysActual),
+    String(t.forms), String(t.partners), String(t.citiesActual)
+  ]);
+}
+
 function buildDailyOpsTrackerCard_() {
   const data = getDailyOpsTrackerRows_();
   const rows = data.rows, dateLabel = data.dateLabel;
   writeDailyOpsDashboard_(rows, dateLabel);
 
-  const w = { name: 13, today: 8, num: 5 };
-  const headerLine = padRight2_('NAME', w.name) + ' ' + padRight2_('TODAY', w.today) + ' ' +
-    padRight2_('CITYP', w.num) + ' ' + padRight2_('DAYSP', w.num) + ' ' + padRight2_('DAYSA', w.num) + ' ' +
-    padRight2_('FORMS', w.num) + ' ' + padRight2_('PTNRS', w.num) + ' ' + padRight2_('CITYA', w.num);
-  const totalW = headerLine.length;
-
   const panIndiaTotals = newZoneTotals_();
   rows.forEach(r => addToTotals_(panIndiaTotals, r));
 
-  const lines = [];
-  lines.push('PAN INDIA TOTAL');
-  lines.push(totalsRow_('All Zones', panIndiaTotals, w));
-  lines.push('');
+  const sections = [];
+  sections.push({ header: 'PAN India Total', widgets: [opsTrackerTotalsRow_('All Zones', panIndiaTotals)] });
 
-  let currentZone = null, currentZoneTotals = null;
+  let currentZone = null, currentWidgets = null, currentZoneTotals = null;
   rows.forEach(r => {
     if (r.zone !== currentZone) {
-      if (currentZone !== null) {
-        lines.push('-'.repeat(totalW));
-        lines.push(totalsRow_('Zone Total', currentZoneTotals, w));
-        lines.push('');
-      }
+      if (currentZone !== null) currentWidgets.push(opsTrackerTotalsRow_('Zone Total', currentZoneTotals));
       currentZone = r.zone;
       currentZoneTotals = newZoneTotals_();
-      lines.push('[' + currentZone + ']');
-      lines.push(headerLine);
-      lines.push('-'.repeat(totalW));
+      currentWidgets = [opsTrackerHeaderRow_(), { divider: {} }];
+      sections.push({ header: (ZONE_DOTS_[r.zone] || '⚪') + ' ' + currentZone, widgets: currentWidgets });
     }
-    lines.push(
-      padRight2_(r.name, w.name) + ' ' + padRight2_(r.today, w.today) + ' ' +
-      padRight2_(r.citiesPlanned, w.num) + ' ' + padRight2_(r.daysPlanned, w.num) + ' ' + padRight2_(r.daysActual, w.num) + ' ' +
-      padRight2_(r.forms, w.num) + ' ' + padRight2_(r.partners, w.num) + ' ' + padRight2_(r.citiesActual, w.num)
-    );
+    currentWidgets.push(opsTrackerDataRow_(r));
     addToTotals_(currentZoneTotals, r);
   });
-  if (currentZone !== null) {
-    lines.push('-'.repeat(totalW));
-    lines.push(totalsRow_('Zone Total', currentZoneTotals, w));
-  }
+  if (currentWidgets) currentWidgets.push(opsTrackerTotalsRow_('Zone Total', currentZoneTotals));
 
-  const legend = 'CITYP=Cities Planned MTD  DAYSP=Days Planned MTD  DAYSA=Days Actually Travelled  FORMS=Forms Filled  PTNRS=Partners Met  CITYA=Cities Covered (Actual)';
-  const text = '*Field Visit Tracker*\nPublished: ' + dateLabel + '\n```\n' + lines.join('\n') + '\n```\n' + legend;
-  return { count: rows.length, text: text };
+  return {
+    count: rows.length,
+    cardsV2: [{
+      cardId: 'dailyOpsTracker-' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMddHHmm'),
+      card: {
+        header: { title: 'Field Visit Tracker', subtitle: 'Published: ' + dateLabel, imageType: 'CIRCLE' },
+        sections: sections
+      }
+    }]
+  };
 }
 
 /**
