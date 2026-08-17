@@ -1078,7 +1078,7 @@ function getActualTravelStats_() {
 }
 
 function newZoneTotals_() {
-  return { citiesPlanned: 0, daysPlanned: 0, daysActual: 0, forms: 0, partners: 0, citiesActual: 0 };
+  return { citiesPlanned: 0, daysPlanned: 0, daysActual: 0, forms: 0, partners: 0, citiesActual: 0, issueBuckets: {} };
 }
 function addToTotals_(totals, r) {
   totals.citiesPlanned += r.citiesPlanned;
@@ -1087,6 +1087,16 @@ function addToTotals_(totals, r) {
   totals.forms += r.forms;
   totals.partners += r.partners;
   totals.citiesActual += r.citiesActual;
+  Object.keys(r.issueBuckets || {}).forEach(b => {
+    totals.issueBuckets[b] = (totals.issueBuckets[b] || 0) + r.issueBuckets[b];
+  });
+}
+
+/** Top problem category + total issue mentions for a set of issue buckets. */
+function issueSummary_(buckets) {
+  const top = topEntry_(buckets);
+  const count = Object.keys(buckets || {}).reduce((sum, k) => sum + buckets[k], 0);
+  return { top: top ? top.key : '-', count: count };
 }
 /**
  * Gathers the Daily Ops Tracker's rows (one per leader, plan-vs-actual) plus
@@ -1102,6 +1112,10 @@ function getDailyOpsTrackerRows_() {
   const dateLabel = Utilities.formatDate(now, tz, 'EEEE, d MMMM yyyy');
 
   const actual = getActualTravelStats_();
+  // Reuses the same Active-Issues bucketing built for the Partner
+  // Intelligence Summary, so "problems the partner is facing" here is
+  // grounded in the same real dropdown values, not a separate guess.
+  const intel = getPartnerIntelData_();
 
   const rows = [];
   travel.roster.forEach(l => {
@@ -1117,6 +1131,7 @@ function getDailyOpsTrackerRows_() {
       }
     });
     const a = actual[key] || { totalForms: 0, partnerMeets: 0, dateSet: new Set(), citySet: new Set() };
+    const issueBuckets = (intel.leaders[key] || {}).issueBuckets || {};
     rows.push({
       zone: l.zone, role: l.role, name: l.name,
       today: dayMap[todayKey] || '-',
@@ -1125,7 +1140,8 @@ function getDailyOpsTrackerRows_() {
       daysActual: a.dateSet.size,
       forms: a.totalForms,
       partners: a.partnerMeets,
-      citiesActual: a.citySet.size
+      citiesActual: a.citySet.size,
+      issueBuckets: issueBuckets
     });
   });
   rows.sort((a, b) => a.zone.localeCompare(b.zone) || roleRank_(a.role) - roleRank_(b.role) || a.name.localeCompare(b.name));
@@ -1147,7 +1163,7 @@ function writeDailyOpsDashboard_(rows, dateLabel) {
   if (!sh) sh = ss.insertSheet('Dashboard');
   sh.clear();
 
-  const headers = ['Zone', 'Leader Name', 'Role', "Today's Plan", 'Cities Planned (MTD)', 'Days Planned (MTD)', 'Days Actual', 'Forms Filled', 'Partners Met', 'Cities Covered'];
+  const headers = ['Zone', 'Leader Name', 'Role', "Today's Plan", 'Cities Planned (MTD)', 'Days Planned (MTD)', 'Days Actual', 'Forms Filled', 'Partners Met', 'Cities Covered', 'Top Problem Faced', 'Issue Count'];
   const data = [];
   data.push(['Field Visit Tracker']);
   data.push(['Updated: ' + dateLabel]);
@@ -1155,22 +1171,26 @@ function writeDailyOpsDashboard_(rows, dateLabel) {
 
   const panTotals = newZoneTotals_();
   rows.forEach(r => addToTotals_(panTotals, r));
-  data.push(['', 'PAN INDIA TOTAL', '', '', panTotals.citiesPlanned, panTotals.daysPlanned, panTotals.daysActual, panTotals.forms, panTotals.partners, panTotals.citiesActual]);
+  const panIssues = issueSummary_(panTotals.issueBuckets);
+  data.push(['', 'PAN INDIA TOTAL', '', '', panTotals.citiesPlanned, panTotals.daysPlanned, panTotals.daysActual, panTotals.forms, panTotals.partners, panTotals.citiesActual, panIssues.top, panIssues.count]);
 
   let currentZone = null, zoneTotals = null;
   rows.forEach(r => {
     if (r.zone !== currentZone) {
       if (currentZone !== null) {
-        data.push(['', 'ZONE TOTAL - ' + currentZone, '', '', zoneTotals.citiesPlanned, zoneTotals.daysPlanned, zoneTotals.daysActual, zoneTotals.forms, zoneTotals.partners, zoneTotals.citiesActual]);
+        const zi = issueSummary_(zoneTotals.issueBuckets);
+        data.push(['', 'ZONE TOTAL - ' + currentZone, '', '', zoneTotals.citiesPlanned, zoneTotals.daysPlanned, zoneTotals.daysActual, zoneTotals.forms, zoneTotals.partners, zoneTotals.citiesActual, zi.top, zi.count]);
       }
       currentZone = r.zone;
       zoneTotals = newZoneTotals_();
     }
-    data.push([r.zone, r.name, r.role, r.today, r.citiesPlanned, r.daysPlanned, r.daysActual, r.forms, r.partners, r.citiesActual]);
+    const ri = issueSummary_(r.issueBuckets);
+    data.push([r.zone, r.name, r.role, r.today, r.citiesPlanned, r.daysPlanned, r.daysActual, r.forms, r.partners, r.citiesActual, ri.top, ri.count]);
     addToTotals_(zoneTotals, r);
   });
   if (currentZone !== null) {
-    data.push(['', 'ZONE TOTAL - ' + currentZone, '', '', zoneTotals.citiesPlanned, zoneTotals.daysPlanned, zoneTotals.daysActual, zoneTotals.forms, zoneTotals.partners, zoneTotals.citiesActual]);
+    const zi = issueSummary_(zoneTotals.issueBuckets);
+    data.push(['', 'ZONE TOTAL - ' + currentZone, '', '', zoneTotals.citiesPlanned, zoneTotals.daysPlanned, zoneTotals.daysActual, zoneTotals.forms, zoneTotals.partners, zoneTotals.citiesActual, zi.top, zi.count]);
   }
 
   const maxCols = headers.length;
@@ -1215,12 +1235,14 @@ function writeDailyOpsDashboard_(rows, dateLabel) {
   // Planned" / "(MTD)") instead of overflowing, and everything is centered
   // (both horizontally and vertically) for a cleaner, more deliberate look.
   sh.getRange(3, 1, 1, maxCols).setWrap(true).setHorizontalAlignment('center').setVerticalAlignment('middle');
-  sh.getRange(4, 1, paddedData.length - 3, maxCols).setHorizontalAlignment('center').setVerticalAlignment('middle');
+  sh.getRange(4, 1, paddedData.length - 3, maxCols).setWrap(true).setHorizontalAlignment('center').setVerticalAlignment('middle');
 
   sh.setColumnWidth(1, 70);
   sh.setColumnWidth(2, 150);
   sh.setColumnWidth(3, 55);
-  for (let c = 4; c <= maxCols; c++) sh.setColumnWidth(c, 95);
+  for (let c = 4; c <= 10; c++) sh.setColumnWidth(c, 95);
+  sh.setColumnWidth(11, 140); // Top Problem Faced — longer category names
+  sh.setColumnWidth(12, 85); // Issue Count
   sh.setRowHeight(3, 42);
 
   // A distinct tab color so the Dashboard is easy to spot among the sheet's
@@ -1233,96 +1255,48 @@ function writeDailyOpsDashboard_(rows, dateLabel) {
 }
 
 /**
- * A colored, bold totals line — full word labels, no abbreviations.
- * Used for both the PAN India total and each zone's total.
- */
-function opsTotalsWidget_(label, t, color) {
-  const c = color || '#10b981';
-  return {
-    textParagraph: {
-      text: '<font color="' + c + '"><b>' + label + '</b></font> — Cities Planned: <b>' + t.citiesPlanned +
-        '</b> | Days Planned: <b>' + t.daysPlanned + '</b> | Days Actual: <b>' + t.daysActual +
-        '</b> | Forms Filled: <b>' + t.forms + '</b> | Partners Met: <b>' + t.partners +
-        '</b> | Cities Covered: <b>' + t.citiesActual + '</b>'
-    }
-  };
-}
-
-/**
- * One leader's row for the Chat Card: Role + Name in column 1, every
- * metric as its own full-labeled line in column 2. This is the only Card
- * layout confirmed (by real phone tests) to actually show all the data —
- * Chat's Columns widget silently drops any column past the 2nd on a
- * narrow screen, so metrics are stacked as lines instead of real columns.
- * Chat has no wrap/border/center-alignment controls the way a spreadsheet
- * does, so this is as close to "wrapped, bordered, centered" as a Card
- * can get — clean spacing and dividers instead.
- */
-function opsLeaderCardRow_(r) {
-  const roleColor = ROLE_COLORS_[r.role] || '#4a5568';
-  return {
-    columns: {
-      columnItems: [
-        {
-          horizontalSizeStyle: 'FILL_AVAILABLE_SPACE',
-          widgets: [
-            { textParagraph: { text: '<font color="' + roleColor + '"><b>' + (r.role || '-') + '</b></font>' } },
-            { textParagraph: { text: '<b>' + r.name + '</b>' } }
-          ]
-        },
-        {
-          horizontalSizeStyle: 'FILL_AVAILABLE_SPACE',
-          widgets: [
-            { textParagraph: { text: "Today's City: <b>" + r.today + '</b>' } },
-            { textParagraph: { text: 'Cities Planned (MTD): <b>' + r.citiesPlanned + '</b>' } },
-            { textParagraph: { text: 'Days Planned (MTD): <b>' + r.daysPlanned + '</b>' } },
-            { textParagraph: { text: 'Days Actually Travelled: <b>' + r.daysActual + '</b>' } },
-            { textParagraph: { text: 'Forms Filled So Far: <b>' + r.forms + '</b>' } },
-            { textParagraph: { text: 'Partners Met So Far: <b>' + r.partners + '</b>' } },
-            { textParagraph: { text: 'Cities Covered So Far: <b>' + r.citiesActual + '</b>' } }
-          ]
-        }
-      ]
-    }
-  };
-}
-
-/**
- * The Chat message: a PAN India total, a zone total per zone, then the
- * full leader-wise breakdown (colored, grouped by zone), plus a button to
- * the Dashboard sheet for the real bordered/wrapped/centered spreadsheet
- * view — since Chat itself has no equivalent of cell borders or text
- * wrapping, this is the closest visual match Chat's Card format allows.
+ * The Chat message: back to the simple format — Role+Name and a single
+ * Forms Filled line per leader, grouped by zone — with a button at the
+ * bottom linking to the Dashboard sheet for the full plan-vs-actual and
+ * partner-problem breakdown.
  */
 function buildDailyOpsTrackerCard_() {
   const data = getDailyOpsTrackerRows_();
   const rows = data.rows, dateLabel = data.dateLabel;
   const dashboardUrl = writeDailyOpsDashboard_(rows, dateLabel);
 
-  const panIndiaTotals = newZoneTotals_();
-  rows.forEach(r => addToTotals_(panIndiaTotals, r));
-
   const sections = [];
-  sections.push({ header: 'PAN India Total', widgets: [opsTotalsWidget_('All Zones', panIndiaTotals)] });
-
-  let currentZone = null, currentWidgets = null, currentZoneTotals = null;
+  let currentZone = null, currentWidgets = null;
   rows.forEach(r => {
     if (r.zone !== currentZone) {
-      if (currentZone !== null) currentWidgets.push(opsTotalsWidget_('Zone Total', currentZoneTotals));
       currentZone = r.zone;
-      currentZoneTotals = newZoneTotals_();
       currentWidgets = [];
       sections.push({ header: (ZONE_DOTS_[r.zone] || '⚪') + ' ' + currentZone, widgets: currentWidgets });
     }
-    currentWidgets.push(opsLeaderCardRow_(r));
+    const roleColor = ROLE_COLORS_[r.role] || '#4a5568';
+    currentWidgets.push({
+      columns: {
+        columnItems: [
+          {
+            horizontalSizeStyle: 'FILL_AVAILABLE_SPACE',
+            widgets: [
+              { textParagraph: { text: '<font color="' + roleColor + '"><b>' + (r.role || '-') + '</b></font>' } },
+              { textParagraph: { text: '<b>' + r.name + '</b>' } }
+            ]
+          },
+          {
+            horizontalSizeStyle: 'FILL_AVAILABLE_SPACE',
+            widgets: [{ textParagraph: { text: 'Forms Filled: <b>' + r.forms + '</b>' } }]
+          }
+        ]
+      }
+    });
     currentWidgets.push({ divider: {} });
-    addToTotals_(currentZoneTotals, r);
   });
-  if (currentWidgets) currentWidgets.push(opsTotalsWidget_('Zone Total', currentZoneTotals));
 
   sections.push({
     widgets: [
-      { textParagraph: { text: 'The Dashboard sheet has this same data as a real bordered, centered, frozen-column table.' } },
+      { textParagraph: { text: 'Full detailed analysis (plan vs. actual, partners met, partner problems) is in the Dashboard sheet.' } },
       { buttonList: { buttons: [{ text: 'Open Dashboard', onClick: { openLink: { url: dashboardUrl } } }] } }
     ]
   });
