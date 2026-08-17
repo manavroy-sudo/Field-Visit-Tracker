@@ -1161,6 +1161,13 @@ function writeDailyOpsDashboard_(rows, dateLabel) {
   });
   sh.getRange(1, 1, paddedData.length, maxCols).setValues(paddedData);
 
+  // Alternating row shading across the whole table first — the explicit
+  // background colors for the header/total rows below are applied after,
+  // so they override the banding for just those rows instead of being
+  // wiped out by it.
+  sh.getBandings().forEach(b => b.remove());
+  sh.getRange(4, 1, paddedData.length - 3, maxCols).applyRowBanding(SpreadsheetApp.BandingTheme.LIGHT_GREY, false, false);
+
   // Not merged across all columns — a merge spanning outside the frozen
   // column range throws "can't freeze columns which contain only part of a
   // merged cell" once setFrozenColumns(2) runs below.
@@ -1177,9 +1184,11 @@ function writeDailyOpsDashboard_(rows, dateLabel) {
 
   // Real cell borders — something Chat's plain-text/Card messages can't do
   // at all, but a genuine spreadsheet feature.
-  sh.getRange(3, 1, paddedData.length - 2, maxCols).setBorder(true, true, true, true, true, true, '#d1d5db', SpreadsheetApp.BorderStyle.SOLID);
-  // A thicker line specifically under the header row, so it's visually
-  // distinct from the numbers below it.
+  const tableRange = sh.getRange(3, 1, paddedData.length - 2, maxCols);
+  tableRange.setBorder(true, true, true, true, true, true, '#d1d5db', SpreadsheetApp.BorderStyle.SOLID);
+  // A bold outer border around the whole table, and a thicker line
+  // specifically under the header row, so both stand out clearly.
+  tableRange.setBorder(true, true, true, true, null, null, '#1a2b4a', SpreadsheetApp.BorderStyle.SOLID_THICK);
   sh.getRange(3, 1, 1, maxCols).setBorder(null, null, true, null, null, null, '#1a2b4a', SpreadsheetApp.BorderStyle.SOLID_THICK);
 
   // Header text wraps onto a 2nd line inside the same cell ("Cities
@@ -1193,6 +1202,10 @@ function writeDailyOpsDashboard_(rows, dateLabel) {
   sh.setColumnWidth(3, 55);
   for (let c = 4; c <= maxCols; c++) sh.setColumnWidth(c, 95);
   sh.setRowHeight(3, 42);
+
+  // A distinct tab color so the Dashboard is easy to spot among the sheet's
+  // other tabs (Responses, Aug'26 Plan, etc.).
+  sh.setTabColor('#1a2b4a');
 
   sh.setFrozenRows(3);
   sh.setFrozenColumns(2);
@@ -1216,12 +1229,50 @@ function opsTotalsWidget_(label, t, color) {
 }
 
 /**
- * The Chat message stays a short, colored summary — PAN India total plus
- * one line per zone, with a button straight to the Dashboard sheet for the
- * full leader-wise breakdown. Chat can't render a real bordered/colored
- * multi-column table, and the Dashboard sheet already does that properly
- * (real borders, colors, frozen rows/columns, unlimited width) — so this
- * message doesn't try to duplicate it, just points to it.
+ * One leader's row for the Chat Card: Role + Name in column 1, every
+ * metric as its own full-labeled line in column 2. This is the only Card
+ * layout confirmed (by real phone tests) to actually show all the data —
+ * Chat's Columns widget silently drops any column past the 2nd on a
+ * narrow screen, so metrics are stacked as lines instead of real columns.
+ * Chat has no wrap/border/center-alignment controls the way a spreadsheet
+ * does, so this is as close to "wrapped, bordered, centered" as a Card
+ * can get — clean spacing and dividers instead.
+ */
+function opsLeaderCardRow_(r) {
+  const roleColor = ROLE_COLORS_[r.role] || '#4a5568';
+  return {
+    columns: {
+      columnItems: [
+        {
+          horizontalSizeStyle: 'FILL_AVAILABLE_SPACE',
+          widgets: [
+            { textParagraph: { text: '<font color="' + roleColor + '"><b>' + (r.role || '-') + '</b></font>' } },
+            { textParagraph: { text: '<b>' + r.name + '</b>' } }
+          ]
+        },
+        {
+          horizontalSizeStyle: 'FILL_AVAILABLE_SPACE',
+          widgets: [
+            { textParagraph: { text: "Today's City: <b>" + r.today + '</b>' } },
+            { textParagraph: { text: 'Cities Planned (MTD): <b>' + r.citiesPlanned + '</b>' } },
+            { textParagraph: { text: 'Days Planned (MTD): <b>' + r.daysPlanned + '</b>' } },
+            { textParagraph: { text: 'Days Actually Travelled: <b>' + r.daysActual + '</b>' } },
+            { textParagraph: { text: 'Forms Filled So Far: <b>' + r.forms + '</b>' } },
+            { textParagraph: { text: 'Partners Met So Far: <b>' + r.partners + '</b>' } },
+            { textParagraph: { text: 'Cities Covered So Far: <b>' + r.citiesActual + '</b>' } }
+          ]
+        }
+      ]
+    }
+  };
+}
+
+/**
+ * The Chat message: a PAN India total, a zone total per zone, then the
+ * full leader-wise breakdown (colored, grouped by zone), plus a button to
+ * the Dashboard sheet for the real bordered/wrapped/centered spreadsheet
+ * view — since Chat itself has no equivalent of cell borders or text
+ * wrapping, this is the closest visual match Chat's Card format allows.
  */
 function buildDailyOpsTrackerCard_() {
   const data = getDailyOpsTrackerRows_();
@@ -1234,22 +1285,24 @@ function buildDailyOpsTrackerCard_() {
   const sections = [];
   sections.push({ header: 'PAN India Total', widgets: [opsTotalsWidget_('All Zones', panIndiaTotals)] });
 
-  const zoneWidgets = [];
-  let currentZone = null, currentZoneTotals = null;
+  let currentZone = null, currentWidgets = null, currentZoneTotals = null;
   rows.forEach(r => {
     if (r.zone !== currentZone) {
-      if (currentZone !== null) zoneWidgets.push(opsTotalsWidget_((ZONE_DOTS_[currentZone] || '⚪') + ' ' + currentZone, currentZoneTotals));
+      if (currentZone !== null) currentWidgets.push(opsTotalsWidget_('Zone Total', currentZoneTotals));
       currentZone = r.zone;
       currentZoneTotals = newZoneTotals_();
+      currentWidgets = [];
+      sections.push({ header: (ZONE_DOTS_[r.zone] || '⚪') + ' ' + currentZone, widgets: currentWidgets });
     }
+    currentWidgets.push(opsLeaderCardRow_(r));
+    currentWidgets.push({ divider: {} });
     addToTotals_(currentZoneTotals, r);
   });
-  if (currentZone !== null) zoneWidgets.push(opsTotalsWidget_((ZONE_DOTS_[currentZone] || '⚪') + ' ' + currentZone, currentZoneTotals));
-  sections.push({ header: 'Zone Totals', widgets: zoneWidgets });
+  if (currentWidgets) currentWidgets.push(opsTotalsWidget_('Zone Total', currentZoneTotals));
 
   sections.push({
     widgets: [
-      { textParagraph: { text: 'Full leader-wise breakdown (with real colors, borders, and frozen columns) is in the Dashboard sheet.' } },
+      { textParagraph: { text: 'The Dashboard sheet has this same data as a real bordered, centered, frozen-column table.' } },
       { buttonList: { buttons: [{ text: 'Open Dashboard', onClick: { openLink: { url: dashboardUrl } } }] } }
     ]
   });
