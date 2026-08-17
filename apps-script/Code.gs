@@ -1180,56 +1180,39 @@ function writeDailyOpsDashboard_(rows, dateLabel) {
   sh.autoResizeColumns(1, maxCols);
 }
 
-// Full, clear metric labels — no abbreviations like "CP"/"DAYSP". Chat's
-// Columns widget only reliably keeps 2 columns side-by-side on a phone
-// (confirmed twice now: a 3rd+ column silently disappears rather than
-// wrapping), so every metric beyond Role+Name is stacked as its own
-// labeled line in the 2nd column instead of a real 3rd+ column — this is
-// the only layout that's both Card-styled AND guaranteed to show all the
-// data on any screen size.
-function opsTrackerRow_(role, name, metricLines) {
-  const roleColor = ROLE_COLORS_[role] || '#4a5568';
-  return {
-    columns: {
-      columnItems: [
-        {
-          horizontalSizeStyle: 'FILL_AVAILABLE_SPACE',
-          widgets: [
-            { textParagraph: { text: '<font color="' + roleColor + '"><b>' + (role || '-') + '</b></font>' } },
-            { textParagraph: { text: '<b>' + name + '</b>' } }
-          ]
-        },
-        {
-          horizontalSizeStyle: 'FILL_AVAILABLE_SPACE',
-          widgets: metricLines.map(text => ({ textParagraph: { text: text } }))
-        }
-      ]
-    }
-  };
+function padRight2_(val, len) {
+  let s = String(val);
+  if (s.length > len) return s.slice(0, len - 1) + '…';
+  while (s.length < len) s += ' ';
+  return s;
 }
 
-function opsTrackerDataRow_(r) {
-  return opsTrackerRow_(r.role, r.name, [
-    "Today's City: <b>" + r.today + '</b>',
-    'Cities Planned (Month to Date): <b>' + r.citiesPlanned + '</b>',
-    'Days Planned (Month to Date): <b>' + r.daysPlanned + '</b>',
-    'Days Actually Travelled: <b>' + r.daysActual + '</b>',
-    'Forms Filled So Far: <b>' + r.forms + '</b>',
-    'Partners Met So Far: <b>' + r.partners + '</b>',
-    'Cities Covered So Far: <b>' + r.citiesActual + '</b>'
-  ]);
-}
+// Clear, short (not cryptic) header words — a real header row printed once
+// per zone, not repeated per leader. Chat Cards can't reliably show more
+// than 2 columns side-by-side on a phone (confirmed twice with real
+// devices), so a genuine multi-column table with one header row has to be
+// a monospace ``` block — the same structure the Dashboard sheet already
+// uses, just plain text.
+const OPS_TRACKER_COLS_ = [
+  { key: 'name', label: 'NAME', w: 14 },
+  { key: 'today', label: 'TODAY', w: 10 },
+  { key: 'citiesPlanned', label: 'CITY PLAN', w: 10 },
+  { key: 'daysPlanned', label: 'DAYS PLAN', w: 10 },
+  { key: 'daysActual', label: 'DAYS DONE', w: 10 },
+  { key: 'forms', label: 'FORMS', w: 6 },
+  { key: 'partners', label: 'PARTNERS', w: 9 },
+  { key: 'citiesActual', label: 'CITY DONE', w: 10 }
+];
 
-function opsTrackerTotalsRow_(label, t, color) {
-  const c = color || '#10b981';
-  return {
-    textParagraph: {
-      text: '<font color="' + c + '"><b>' + label + '</b></font> — Cities Planned: <b>' + t.citiesPlanned +
-        '</b> | Days Planned: <b>' + t.daysPlanned + '</b> | Days Actual: <b>' + t.daysActual +
-        '</b> | Forms Filled: <b>' + t.forms + '</b> | Partners Met: <b>' + t.partners +
-        '</b> | Cities Covered: <b>' + t.citiesActual + '</b>'
-    }
-  };
+function opsTrackerHeaderLine_() {
+  return OPS_TRACKER_COLS_.map(c => padRight2_(c.label, c.w)).join(' ');
+}
+function opsTrackerDataLine_(r) {
+  return OPS_TRACKER_COLS_.map(c => padRight2_(r[c.key], c.w)).join(' ');
+}
+function opsTrackerTotalsLine_(label, t) {
+  return padRight2_(label, OPS_TRACKER_COLS_[0].w + OPS_TRACKER_COLS_[1].w + 1) + ' ' +
+    OPS_TRACKER_COLS_.slice(2).map(c => padRight2_(t[c.key], c.w)).join(' ');
 }
 
 function buildDailyOpsTrackerCard_() {
@@ -1237,37 +1220,41 @@ function buildDailyOpsTrackerCard_() {
   const rows = data.rows, dateLabel = data.dateLabel;
   writeDailyOpsDashboard_(rows, dateLabel);
 
+  const headerLine = opsTrackerHeaderLine_();
+  const totalW = headerLine.length;
+
   const panIndiaTotals = newZoneTotals_();
   rows.forEach(r => addToTotals_(panIndiaTotals, r));
 
-  const sections = [];
-  sections.push({ header: 'PAN India Total', widgets: [opsTrackerTotalsRow_('All Zones', panIndiaTotals)] });
+  const lines = [];
+  lines.push('PAN INDIA TOTAL');
+  lines.push(opsTrackerTotalsLine_('All Zones', panIndiaTotals));
+  lines.push('');
 
-  let currentZone = null, currentWidgets = null, currentZoneTotals = null;
+  let currentZone = null, currentZoneTotals = null;
   rows.forEach(r => {
     if (r.zone !== currentZone) {
-      if (currentZone !== null) currentWidgets.push(opsTrackerTotalsRow_('Zone Total', currentZoneTotals));
+      if (currentZone !== null) {
+        lines.push('-'.repeat(totalW));
+        lines.push(opsTrackerTotalsLine_('Zone Total', currentZoneTotals));
+        lines.push('');
+      }
       currentZone = r.zone;
       currentZoneTotals = newZoneTotals_();
-      currentWidgets = [];
-      sections.push({ header: (ZONE_DOTS_[r.zone] || '⚪') + ' ' + currentZone, widgets: currentWidgets });
+      lines.push('[' + currentZone + ']');
+      lines.push(headerLine);
+      lines.push('-'.repeat(totalW));
     }
-    currentWidgets.push(opsTrackerDataRow_(r));
-    currentWidgets.push({ divider: {} });
+    lines.push(opsTrackerDataLine_(r));
     addToTotals_(currentZoneTotals, r);
   });
-  if (currentWidgets) currentWidgets.push(opsTrackerTotalsRow_('Zone Total', currentZoneTotals));
+  if (currentZone !== null) {
+    lines.push('-'.repeat(totalW));
+    lines.push(opsTrackerTotalsLine_('Zone Total', currentZoneTotals));
+  }
 
-  return {
-    count: rows.length,
-    cardsV2: [{
-      cardId: 'dailyOpsTracker-' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMddHHmm'),
-      card: {
-        header: { title: 'Field Visit Tracker', subtitle: 'Published: ' + dateLabel, imageType: 'CIRCLE' },
-        sections: sections
-      }
-    }]
-  };
+  const text = '*Field Visit Tracker*\nPublished: ' + dateLabel + '\n```\n' + lines.join('\n') + '\n```';
+  return { count: rows.length, text: text };
 }
 
 /**
