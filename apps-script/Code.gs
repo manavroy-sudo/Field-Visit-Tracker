@@ -1180,50 +1180,56 @@ function writeDailyOpsDashboard_(rows, dateLabel) {
   sh.autoResizeColumns(1, maxCols);
 }
 
-// Full, clear column labels — no abbreviations like "CP"/"DAYSP" that read
-// as cryptic. This report deliberately does not worry about narrow-phone
-// column limits (per explicit instruction): every metric gets its own
-// column even though Chat's Columns widget may not keep all of them
-// side-by-side on the narrowest screens.
-const OPS_TRACKER_LABELS_ = ['Role', 'Name', "Today's City", 'Cities Planned (MTD)', 'Days Planned (MTD)', 'Days Actual', 'Forms Filled', 'Partners Met', 'Cities Covered'];
-
-function opsColumnsRow_(cellTexts) {
+// Full, clear metric labels — no abbreviations like "CP"/"DAYSP". Chat's
+// Columns widget only reliably keeps 2 columns side-by-side on a phone
+// (confirmed twice now: a 3rd+ column silently disappears rather than
+// wrapping), so every metric beyond Role+Name is stacked as its own
+// labeled line in the 2nd column instead of a real 3rd+ column — this is
+// the only layout that's both Card-styled AND guaranteed to show all the
+// data on any screen size.
+function opsTrackerRow_(role, name, metricLines) {
+  const roleColor = ROLE_COLORS_[role] || '#4a5568';
   return {
     columns: {
-      columnItems: cellTexts.map(text => ({
-        horizontalSizeStyle: 'FILL_AVAILABLE_SPACE',
-        widgets: [{ textParagraph: { text: text } }]
-      }))
+      columnItems: [
+        {
+          horizontalSizeStyle: 'FILL_AVAILABLE_SPACE',
+          widgets: [
+            { textParagraph: { text: '<font color="' + roleColor + '"><b>' + (role || '-') + '</b></font>' } },
+            { textParagraph: { text: '<b>' + name + '</b>' } }
+          ]
+        },
+        {
+          horizontalSizeStyle: 'FILL_AVAILABLE_SPACE',
+          widgets: metricLines.map(text => ({ textParagraph: { text: text } }))
+        }
+      ]
     }
   };
 }
 
-function opsTrackerHeaderRow_() {
-  return opsColumnsRow_(OPS_TRACKER_LABELS_.map(l => '<b>' + l + '</b>'));
-}
-
 function opsTrackerDataRow_(r) {
-  const roleColor = ROLE_COLORS_[r.role] || '#4a5568';
-  return opsColumnsRow_([
-    '<font color="' + roleColor + '"><b>' + (r.role || '-') + '</b></font>',
-    '<b>' + r.name + '</b>',
-    '📍 ' + r.today,
-    String(r.citiesPlanned),
-    String(r.daysPlanned),
-    String(r.daysActual),
-    String(r.forms),
-    String(r.partners),
-    String(r.citiesActual)
+  return opsTrackerRow_(r.role, r.name, [
+    "Today's City: <b>" + r.today + '</b>',
+    'Cities Planned (Month to Date): <b>' + r.citiesPlanned + '</b>',
+    'Days Planned (Month to Date): <b>' + r.daysPlanned + '</b>',
+    'Days Actually Travelled: <b>' + r.daysActual + '</b>',
+    'Forms Filled So Far: <b>' + r.forms + '</b>',
+    'Partners Met So Far: <b>' + r.partners + '</b>',
+    'Cities Covered So Far: <b>' + r.citiesActual + '</b>'
   ]);
 }
 
 function opsTrackerTotalsRow_(label, t, color) {
   const c = color || '#10b981';
-  return opsColumnsRow_([
-    '', '<font color="' + c + '"><b>' + label + '</b></font>', '',
-    String(t.citiesPlanned), String(t.daysPlanned), String(t.daysActual),
-    String(t.forms), String(t.partners), String(t.citiesActual)
-  ]);
+  return {
+    textParagraph: {
+      text: '<font color="' + c + '"><b>' + label + '</b></font> — Cities Planned: <b>' + t.citiesPlanned +
+        '</b> | Days Planned: <b>' + t.daysPlanned + '</b> | Days Actual: <b>' + t.daysActual +
+        '</b> | Forms Filled: <b>' + t.forms + '</b> | Partners Met: <b>' + t.partners +
+        '</b> | Cities Covered: <b>' + t.citiesActual + '</b>'
+    }
+  };
 }
 
 function buildDailyOpsTrackerCard_() {
@@ -1243,10 +1249,11 @@ function buildDailyOpsTrackerCard_() {
       if (currentZone !== null) currentWidgets.push(opsTrackerTotalsRow_('Zone Total', currentZoneTotals));
       currentZone = r.zone;
       currentZoneTotals = newZoneTotals_();
-      currentWidgets = [opsTrackerHeaderRow_(), { divider: {} }];
+      currentWidgets = [];
       sections.push({ header: (ZONE_DOTS_[r.zone] || '⚪') + ' ' + currentZone, widgets: currentWidgets });
     }
     currentWidgets.push(opsTrackerDataRow_(r));
+    currentWidgets.push({ divider: {} });
     addToTotals_(currentZoneTotals, r);
   });
   if (currentWidgets) currentWidgets.push(opsTrackerTotalsRow_('Zone Total', currentZoneTotals));
