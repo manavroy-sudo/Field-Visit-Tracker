@@ -532,6 +532,9 @@ function doPost(e) {
     // the new login screen). Returns the employee record + today's planned
     // city (if any) on success.
     if (data.action === 'v2Login') {
+      if (v2IsCentralLogin_(data.employeeCode)) {
+        return json_({ status: 'success', employee: v2CentralIdentity_(), central: true, todaysCity: '', plans: {}, stats: null });
+      }
       const employee = v2FindEmployee_(data.employeeCode);
       if (!employee) return json_(error_v2_('EMPLOYEE_NOT_FOUND', 'Employee ID not found in the live roster.'));
       const travel = getTravelPlanData_();
@@ -557,6 +560,20 @@ function doPost(e) {
     // real sheet data instead of guessed option lists.
     if (data.action === 'v2TallyColumn') {
       return json_({ status: 'success', values: tallyColumn_(Number(data.colIndex)) });
+    }
+
+    // Central Dashboard: full PAN-India aggregation (executive summary,
+    // zone/state/city rollups, leader-wise rows, insights). Gated by the
+    // same API_KEY as every other action — the frontend only exposes this
+    // after a '0001' login, but the key check above is the real gate.
+    if (data.action === 'v2CentralData') {
+      return json_({ status: 'success', data: getCentralDashboardData_() });
+    }
+
+    // Central Dashboard: drill-down into one leader's plan + every response
+    // they've submitted.
+    if (data.action === 'v2LeaderDrilldown') {
+      return json_(v2LeaderDrilldown_(data.employeeName));
     }
 
     const type = data.visit_type;
@@ -1730,6 +1747,202 @@ function daysAgoLabel_(date) {
   if (days <= 0) return 'Today';
   if (days === 1) return 'Yesterday';
   return days + ' days ago';
+}
+
+// —————————————————————————————————————————————
+// CENTRAL DASHBOARD — PAN-India view for the Central Team (login ID '0001').
+// Built entirely on top of the existing aggregation functions above
+// (getTravelPlanData_, getDailyOpsTrackerRows_, getPartnerIntelData_,
+// getFormFillCounts_) rather than re-deriving anything from scratch, so
+// this view can never drift from the Chat reports/Daily Ops Tracker that
+// already use the same functions.
+// —————————————————————————————————————————————
+const CENTRAL_LOGIN_ID_ = '0001';
+
+function v2IsCentralLogin_(employeeCode) {
+  return String(employeeCode || '').trim() === CENTRAL_LOGIN_ID_;
+}
+
+function v2CentralIdentity_() {
+  return { id: CENTRAL_LOGIN_ID_, name: 'Central Team', role: 'CENTRAL', zone: 'PAN India', region: 'All Regions', base: '', plan: 0 };
+}
+
+/**
+ * One leader-wise row combining plan (roster + travel plan), actual travel
+ * (getActualTravelStats_/getDailyOpsTrackerRows_), and response-level detail
+ * (getFormFillCounts_) — the single source of truth for every leader-wise
+ * view in the Central Dashboard (executive table, zone/state rollups,
+ * Visit Tracker ranking, drill-down).
+ */
+function getCentralLeaderRows_() {
+  const travel = getTravelPlanData_();
+  const opsRows = getDailyOpsTrackerRows_().rows; // zone, role, name, daysPlanned, daysActual, forms, partners, citiesActual, issueBuckets
+  const formCounts = getFormFillCounts_(); // byType, pendingFollowUps, lastVisitAt
+
+  const opsByKey = {};
+  opsRows.forEach(r => { opsByKey[normalizeName_(r.name)] = r; });
+
+  return travel.roster.map(l => {
+    const key = normalizeName_(l.name);
+    const ops = opsByKey[key] || { daysPlanned: 0, daysActual: 0, forms: 0, partners: 0, citiesActual: 0, issueBuckets: {} };
+    const fc = formCounts[key] || { byType: { 'Partner Meet': 0, 'Team Connect': 0, 'Insurer Meet': 0 }, pendingFollowUps: 0, lastVisitAt: null };
+    const pending = Math.max(0, ops.daysPlanned - ops.daysActual);
+    return {
+      id: l.id, name: l.name, role: l.role, zone: l.zone, state: l.region, baseCity: l.base,
+      plannedDays: ops.daysPlanned, completedDays: ops.daysActual, pendingDays: pending,
+      completionPct: ops.daysPlanned > 0 ? Math.round((ops.daysActual / ops.daysPlanned) * 100) : null,
+      formsFilled: ops.forms, partnerMeets: fc.byType['Partner Meet'] || 0,
+      teamConnects: fc.byType['Team Connect'] || 0, insurerMeets: fc.byType['Insurer Meet'] || 0,
+      citiesActual: ops.citiesActual, pendingFollowUps: fc.pendingFollowUps,
+      lastVisitAt: fc.lastVisitAt ? fc.lastVisitAt.toISOString() : null,
+      lastVisitLabel: daysAgoLabel_(fc.lastVisitAt),
+      issueBuckets: ops.issueBuckets
+    };
+  }).sort((a, b) => a.zone.localeCompare(b.zone) || roleRank_(a.role) - roleRank_(b.role) || a.name.localeCompare(b.name));
+}
+
+/** Groups leader rows by an arbitrary key (zone or state/region) and rolls up plan/actual totals + a completion %. */
+function rollupLeaderRows_(leaders, keyFn) {
+  const map = {};
+  leaders.forEach(l => {
+    const k = keyFn(l) || 'Other';
+    if (!map[k]) map[k] = { key: k, leaders: 0, plannedDays: 0, completedDays: 0, pendingDays: 0, formsFilled: 0, partnerMeets: 0 };
+    const g = map[k];
+    g.leaders++; g.plannedDays += l.plannedDays; g.completedDays += l.completedDays;
+    g.pendingDays += l.pendingDays; g.formsFilled += l.formsFilled; g.partnerMeets += l.partnerMeets;
+  });
+  return Object.values(map)
+    .map(g => Object.assign(g, { completionPct: g.plannedDays ? Math.round((g.completedDays / g.plannedDays) * 100) : null }))
+    .sort((a, b) => (b.completionPct || 0) - (a.completionPct || 0));
+}
+
+/** City-wise actual-visit counts, read directly from the Responses sheet's Visit City column. */
+function getCityVisitCounts_() {
+  const ss = SpreadsheetApp.openById(FORM_RESPONSES_SHEET_ID);
+  const sh = ss.getSheetByName(V2_RESPONSES_TAB_) || ss.getSheets()[0];
+  const lastRow = sh.getLastRow();
+  const counts = {};
+  if (lastRow < 2) return [];
+  const n = lastRow - 1;
+  const cities = sh.getRange(2, RESP_COL_VISIT_CITY_ + 1, n, 1).getValues();
+  cities.forEach(row => {
+    const c = normalizeCity_(row[0]);
+    if (c) counts[c] = (counts[c] || 0) + 1;
+  });
+  return Object.keys(counts).map(c => ({ city: c, visits: counts[c] })).sort((a, b) => b.visits - a.visits);
+}
+
+/**
+ * The full PAN-India payload for the Central Dashboard: executive summary
+ * KPIs, zone-wise and state-wise rollups, city-wise actual visits,
+ * leader-wise rows (same shape used for the Visit Tracker ranking and the
+ * leader table), and a set of dynamically-computed insights — nothing here
+ * is hardcoded; every number is derived from the current roster/travel
+ * plan/Responses data at call time.
+ */
+function getCentralDashboardData_() {
+  const leaders = getCentralLeaderRows_();
+  const intel = getPartnerIntelData_();
+
+  const totalPlanned = leaders.reduce((s, l) => s + l.plannedDays, 0);
+  const totalCompleted = leaders.reduce((s, l) => s + l.completedDays, 0);
+  const totalPending = leaders.reduce((s, l) => s + l.pendingDays, 0);
+
+  const byZone = rollupLeaderRows_(leaders, l => l.zone);
+  const byState = rollupLeaderRows_(leaders, l => l.state);
+  const byCity = getCityVisitCounts_();
+
+  const withPlan = leaders.filter(l => l.plannedDays > 0);
+  const sortedByCompletion = withPlan.slice().sort((a, b) => (a.completionPct || 0) - (b.completionPct || 0));
+  const lowest = sortedByCompletion.slice(0, 5).map(l => ({ name: l.name, zone: l.zone, state: l.state, completionPct: l.completionPct }));
+  const highest = sortedByCompletion.slice(-5).reverse().map(l => ({ name: l.name, zone: l.zone, state: l.state, completionPct: l.completionPct }));
+  const zeroCompletion = withPlan.filter(l => l.completedDays === 0).map(l => ({ name: l.name, zone: l.zone, plannedDays: l.plannedDays }));
+  const pendingFollowUpLeaders = leaders.filter(l => l.pendingFollowUps > 0)
+    .sort((a, b) => b.pendingFollowUps - a.pendingFollowUps)
+    .slice(0, 5).map(l => ({ name: l.name, zone: l.zone, pendingFollowUps: l.pendingFollowUps }));
+
+  const zoneSorted = byZone.filter(z => z.plannedDays > 0).slice().sort((a, b) => (a.completionPct || 0) - (b.completionPct || 0));
+  const stateSorted = byState.filter(s => s.plannedDays > 0).slice().sort((a, b) => (a.completionPct || 0) - (b.completionPct || 0));
+
+  return {
+    generatedAt: new Date().toISOString(),
+    summary: {
+      totalLeaders: leaders.length,
+      totalPartners: intel.overall.total,
+      totalPlannedVisits: totalPlanned,
+      totalCompletedVisits: totalCompleted,
+      totalPendingVisits: totalPending,
+      completionPct: totalPlanned ? Math.round((totalCompleted / totalPlanned) * 100) : 0,
+      activePartners: intel.overall.active,
+      inactivePartners: intel.overall.inactive,
+      partnerMeets: intel.overall.total,
+      teamConnects: leaders.reduce((s, l) => s + l.teamConnects, 0),
+      insurerMeets: leaders.reduce((s, l) => s + l.insurerMeets, 0)
+    },
+    byZone: byZone,
+    byState: byState,
+    byCity: byCity,
+    leaders: leaders,
+    insights: {
+      lowestPerformers: lowest,
+      topPerformers: highest,
+      zeroCompletionCount: zeroCompletion.length,
+      zeroCompletionLeaders: zeroCompletion,
+      pendingFollowUpLeaders: pendingFollowUpLeaders,
+      weakestZone: zoneSorted.length ? { key: zoneSorted[0].key, completionPct: zoneSorted[0].completionPct } : null,
+      weakestState: stateSorted.length ? { key: stateSorted[0].key, completionPct: stateSorted[0].completionPct } : null,
+      topIssue: topEntry_(intel.overall.issueBuckets),
+      topBusinessOpportunity: topEntry_(intel.overall.businessOpp)
+    }
+  };
+}
+
+/**
+ * Full drill-down for one leader (matched by name): their travel plan for
+ * the month, and every individual response row they've submitted (visit
+ * type, city, partner/insurer/team detail, outcome, follow-up flag) —
+ * sourced directly from the Responses sheet, newest first.
+ */
+function v2LeaderDrilldown_(employeeName) {
+  const key = normalizeName_(employeeName);
+  const travel = getTravelPlanData_();
+  const leader = travel.roster.find(l => normalizeName_(l.name) === key);
+  if (!leader) return error_v2_('NOT_FOUND', 'Leader not found in the live roster.');
+
+  const ss = SpreadsheetApp.openById(FORM_RESPONSES_SHEET_ID);
+  const sh = ss.getSheetByName(V2_RESPONSES_TAB_) || ss.getSheets()[0];
+  const lastRow = sh.getLastRow();
+  const visits = [];
+  const tz = Session.getScriptTimeZone();
+
+  if (lastRow >= 2) {
+    const n = lastRow - 1;
+    const values = sh.getRange(2, 1, n, V2_HEADERS_.length).getValues();
+    values.forEach(row => {
+      if (normalizeName_(row[RESP_COL_NAME_]) !== key) return;
+      const vd = row[RESP_COL_VISIT_DATE_];
+      const ts = row[RESP_COL_TIMESTAMP_];
+      visits.push({
+        submissionId: row[0],
+        timestamp: ts instanceof Date && !isNaN(ts.getTime()) ? ts.toISOString() : String(ts || ''),
+        visitDate: vd instanceof Date && !isNaN(vd.getTime()) ? Utilities.formatDate(vd, tz, 'yyyy-MM-dd') : String(vd || ''),
+        visitType: row[RESP_COL_VISIT_TYPE_],
+        visitCity: row[RESP_COL_VISIT_CITY_],
+        partnerName: row[13] || row[24] || row[27] || '', // Partner Name / Team Member / Insurer Name, whichever applies
+        partnerStatus: row[RESP_COL_PARTNER_STATUS_] || '',
+        businessOpportunity: row[RESP_COL_BUSINESS_OPP_] || '',
+        followUpRequired: row[RESP_COL_FOLLOWUP_REQUIRED_] || 'No'
+      });
+    });
+  }
+  visits.sort((a, b) => new Date(b.visitDate) - new Date(a.visitDate));
+
+  return {
+    status: 'success',
+    leader: leader,
+    plans: travel.plans[leader.id] || {},
+    visits: visits
+  };
 }
 
 // Compliance/recency color thresholds — green on track, amber behind, red well behind.
