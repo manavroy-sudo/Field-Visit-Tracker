@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Field Visit Tracker — Dashboard</title>
+<style>
+  :root{
+    --navy:#1a2b4a; --blue:#3b82f6; --green:#10b981; --amber:#f59e0b; --red:#ef4444;
+    --bg:#f4f6f9; --card:#ffffff; --border:#e2e8f0; --text:#1e293b; --muted:#64748b;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);}
+  .topbar{background:var(--navy);color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10;}
+  .topbar .brand{font-weight:700;font-size:16px;}
+  .topbar .sub{font-size:11px;opacity:0.75;}
+  .wrap{max-width:520px;margin:0 auto;padding:16px;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,0.04);}
+  h1{font-size:20px;margin:0 0 6px;}
+  h2{font-size:15px;margin:0 0 12px;color:var(--navy);}
+  p.hint{color:var(--muted);font-size:13px;margin:4px 0 16px;}
+  label{display:block;font-size:13px;font-weight:600;margin:14px 0 6px;color:#334155;}
+  label.req::after{content:' *';color:var(--red);}
+  input[type=text],input[type=date],input[type=number],select,textarea{
+    width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:15px;
+    background:#fff;color:var(--text);font-family:inherit;
+  }
+  textarea{resize:vertical;min-height:70px;}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
+  .btn{display:block;width:100%;padding:14px;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;text-align:center;}
+  .btn-primary{background:var(--blue);color:#fff;}
+  .btn-primary:disabled{background:#93c5fd;cursor:not-allowed;}
+  .btn-secondary{background:#eef2f7;color:var(--navy);margin-top:10px;}
+  .btn-ghost{background:transparent;color:var(--muted);text-decoration:underline;padding:8px;font-weight:600;}
+  .error-box{background:#fef2f2;border:1px solid #fecaca;color:#991b1b;padding:10px 14px;border-radius:10px;font-size:13.5px;margin-top:10px;}
+  .success-box{background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;padding:10px 14px;border-radius:10px;font-size:13.5px;margin-top:10px;}
+  .chip-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;}
+  .chip{border:1.5px solid var(--border);border-radius:20px;padding:8px 16px;font-size:14px;font-weight:600;cursor:pointer;background:#fff;color:var(--text);}
+  .chip.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+  .check-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;}
+  .check-pill{border:1.5px solid var(--border);border-radius:8px;padding:9px 12px;font-size:13.5px;cursor:pointer;background:#fff;display:flex;align-items:center;gap:6px;}
+  .check-pill.on{background:#eff6ff;border-color:var(--blue);color:var(--blue);font-weight:600;}
+  .stat-row{display:flex;gap:10px;}
+  .stat{flex:1;background:#f8fafc;border-radius:10px;padding:12px;text-align:center;}
+  .stat .num{font-size:22px;font-weight:800;color:var(--navy);}
+  .stat .lbl{font-size:11px;color:var(--muted);margin-top:2px;}
+  .plan-badge{display:inline-flex;align-items:center;gap:6px;background:#eff6ff;color:var(--blue);border-radius:20px;padding:6px 14px;font-size:13px;font-weight:600;margin-top:6px;}
+  .role-badge{display:inline-block;padding:3px 10px;border-radius:6px;font-size:12px;font-weight:700;color:#fff;}
+  .loc-status{font-size:13px;margin-top:8px;padding:8px 12px;border-radius:8px;background:#f8fafc;}
+  .hidden{display:none !important;}
+  .spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,0.4);border-top-color:#fff;border-radius:50%;display:inline-block;animation:spin 0.7s linear infinite;vertical-align:-3px;margin-right:6px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .divider{height:1px;background:var(--border);margin:16px 0;}
+  .visit-added{display:flex;align-items:center;justify-content:space-between;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 14px;margin-bottom:8px;font-size:13.5px;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <div class="brand">Field Visit Tracker</div>
+    <div class="sub" id="topbarSub">V2 Dashboard</div>
+  </div>
+  <div id="topbarUser" style="font-size:13px;"></div>
+</div>
+
+<div class="wrap">
+
+  <!-- LOGIN SCREEN -->
+  <div id="screen-login">
+    <div class="card">
+      <h1>Sign in</h1>
+      <p class="hint">Enter your Employee ID to continue.</p>
+      <label class="req">Employee ID</label>
+      <input type="text" id="loginEmpId" inputmode="numeric" placeholder="e.g. 10055070" autofocus>
+      <button class="btn btn-primary" id="loginBtn" style="margin-top:16px" onclick="doLogin()">Continue</button>
+      <div id="loginError" class="error-box hidden"></div>
+    </div>
+  </div>
+
+  <!-- HOME / DASHBOARD SCREEN -->
+  <div id="screen-home" class="hidden">
+    <div class="card">
+      <h1 id="homeName">—</h1>
+      <div>
+        <span class="role-badge" id="homeRoleBadge">—</span>
+        <span style="color:var(--muted);font-size:13px;margin-left:8px" id="homeZone"></span>
+      </div>
+      <div id="homePlanBadge" class="plan-badge hidden">📍 Today's plan: <span id="homePlanCity"></span></div>
+      <div class="divider"></div>
+      <h2>This month so far</h2>
+      <div class="stat-row">
+        <div class="stat"><div class="num" id="statTotal">0</div><div class="lbl">Visits logged</div></div>
+        <div class="stat"><div class="num" id="statPlanned">0</div><div class="lbl">Planned days</div></div>
+        <div class="stat"><div class="num" id="statPct">0%</div><div class="lbl">Plan progress</div></div>
+      </div>
+    </div>
+
+    <div id="visitsAddedList"></div>
+
+    <div class="card">
+      <button class="btn btn-primary" onclick="showScreen('form')">+ Log a New Visit</button>
+      <button class="btn btn-ghost" onclick="logout()">Sign out</button>
+    </div>
+  </div>
+
+  <!-- VISIT FORM SCREEN -->
+  <div id="screen-form" class="hidden">
+    <div class="card">
+      <h1>Log a Visit</h1>
+      <label class="req">Visit Type</label>
+      <div class="chip-row" id="visitTypeChips">
+        <div class="chip" data-type="Partner Meet" onclick="selectVisitType('Partner Meet')">Partner Meet</div>
+        <div class="chip" data-type="Team Connect" onclick="selectVisitType('Team Connect')">Team Connect</div>
+        <div class="chip" data-type="Insurer Meet" onclick="selectVisitType('Insurer Meet')">Insurer Meet</div>
+      </div>
+
+      <label class="req">Visit Date</label>
+      <input type="date" id="f_visitDate" onchange="onDateChange()">
+
+      <label class="req">Visit City</label>
+      <input type="text" id="f_visitCity" placeholder="City">
+      <div id="locStatus" class="loc-status hidden"></div>
+    </div>
+
+    <!-- PARTNER MEET FIELDS -->
+    <div id="fields-Partner Meet" class="card hidden">
+      <h2>Partner Details</h2>
+      <label class="req">Partner Name</label>
+      <input type="text" id="pm_partnerName">
+      <label>Partner GID</label>
+      <input type="text" id="pm_partnerGid">
+      <label>Partner Type</label>
+      <select id="pm_partnerType"><option value="">— Select —</option><option>Existing Partner</option><option>New Partner</option></select>
+      <label>Partner Category</label>
+      <select id="pm_partnerCategory"><option value="">— Select —</option><option>POSP Agent</option><option>Individual Advisor</option><option>Dealer / Garage</option><option>DSA</option><option>Corporate Agent</option><option>Sub-Broker</option></select>
+      <label>Partner Status</label>
+      <div class="chip-row">
+        <div class="chip" data-val="Active" onclick="selectChip('pm_partnerStatus',this)">Active</div>
+        <div class="chip" data-val="Inactive" onclick="selectChip('pm_partnerStatus',this)">Inactive</div>
+      </div>
+      <input type="hidden" id="pm_partnerStatus">
+
+      <div id="pm_activeBlock">
+        <label>Active Issues</label>
+        <div class="check-grid" id="pm_activeIssues">
+          <div class="check-pill" data-v="Payout" onclick="toggleCheck(this)">Payout</div>
+          <div class="check-pill" data-v="Competition" onclick="toggleCheck(this)">Competition</div>
+          <div class="check-pill" data-v="Pricing" onclick="toggleCheck(this)">Pricing</div>
+          <div class="check-pill" data-v="RM Support" onclick="toggleCheck(this)">RM Support</div>
+          <div class="check-pill" data-v="Claims" onclick="toggleCheck(this)">Claims</div>
+          <div class="check-pill" data-v="Low Customer Demand" onclick="toggleCheck(this)">Low Customer Demand</div>
+          <div class="check-pill" data-v="Technology" onclick="toggleCheck(this)">Technology</div>
+          <div class="check-pill" data-v="Policy Issuance Delay" onclick="toggleCheck(this)">Policy Issuance Delay</div>
+          <div class="check-pill" data-v="Product Availability" onclick="toggleCheck(this)">Product Availability</div>
+          <div class="check-pill" data-v="Product Knowledge" onclick="toggleCheck(this)">Product Knowledge</div>
+          <div class="check-pill" data-v="Other" onclick="toggleCheck(this)">Other</div>
+        </div>
+      </div>
+      <div id="pm_inactiveBlock" class="hidden">
+        <label>Inactive Issues</label>
+        <div class="check-grid" id="pm_inactiveIssues">
+          <div class="check-pill" data-v="No Customer Demand" onclick="toggleCheck(this)">No Customer Demand</div>
+          <div class="check-pill" data-v="Seasonal Business" onclick="toggleCheck(this)">Seasonal Business</div>
+          <div class="check-pill" data-v="Shifted to Competitor" onclick="toggleCheck(this)">Shifted to Competitor</div>
+          <div class="check-pill" data-v="Pricing" onclick="toggleCheck(this)">Pricing</div>
+          <div class="check-pill" data-v="RM Support" onclick="toggleCheck(this)">RM Support</div>
+          <div class="check-pill" data-v="Technology" onclick="toggleCheck(this)">Technology</div>
+          <div class="check-pill" data-v="Business Closed" onclick="toggleCheck(this)">Business Closed</div>
+          <div class="check-pill" data-v="Relationship Issue" onclick="toggleCheck(this)">Relationship Issue</div>
+          <div class="check-pill" data-v="Other" onclick="toggleCheck(this)">Other</div>
+        </div>
+        <label>Activation Possibility (notes)</label>
+        <textarea id="pm_activationPossibility" placeholder="e.g. expected to activate by 15th, doing 50K/month with competitor..."></textarea>
+      </div>
+
+      <label>Business Opportunity</label>
+      <select id="pm_businessOpportunity"><option value="">— Select —</option><option>High — Ready to scale</option><option>Medium — Needs nurturing</option><option>Low — Early stage</option><option>At Risk — Declining</option></select>
+      <label>Conversion Probability</label>
+      <select id="pm_conversionProbability"><option value="">— Select —</option><option>High</option><option>Medium</option><option>Low</option></select>
+    </div>
+
+    <!-- TEAM CONNECT FIELDS -->
+    <div id="fields-Team Connect" class="card hidden">
+      <h2>Team Connect Details</h2>
+      <label class="req">Meeting Type</label>
+      <select id="tc_meetingType"><option value="">— Select —</option><option>Field Ride-Along</option><option>Team Huddle</option><option>Performance Review</option><option>1:1 Review</option><option>Skip-Level</option></select>
+      <label>Team Member Name</label>
+      <input type="text" id="tc_teamMemberName">
+      <label>Health Assessment</label>
+      <select id="tc_healthAssessment"><option value="">— Select —</option><option>Green — On track</option><option>Amber — Watch</option><option>Red — Intervention needed</option></select>
+      <label>Challenges</label>
+      <div class="check-grid" id="tc_challenges">
+        <div class="check-pill" data-v="Pricing Competitiveness" onclick="toggleCheck(this)">Pricing Competitiveness</div>
+        <div class="check-pill" data-v="Low Activation" onclick="toggleCheck(this)">Low Activation</div>
+        <div class="check-pill" data-v="Tech / Portal Issues" onclick="toggleCheck(this)">Tech / Portal Issues</div>
+        <div class="check-pill" data-v="Territory Coverage" onclick="toggleCheck(this)">Territory Coverage</div>
+        <div class="check-pill" data-v="Motivation / Morale" onclick="toggleCheck(this)">Motivation / Morale</div>
+        <div class="check-pill" data-v="Payout Delays" onclick="toggleCheck(this)">Payout Delays</div>
+        <div class="check-pill" data-v="Attrition Risk" onclick="toggleCheck(this)">Attrition Risk</div>
+      </div>
+    </div>
+
+    <!-- INSURER MEET FIELDS -->
+    <div id="fields-Insurer Meet" class="card hidden">
+      <h2>Insurer Meet Details</h2>
+      <label class="req">Insurer Name</label>
+      <input type="text" id="ins_insurerName">
+      <label>Contact Person</label>
+      <input type="text" id="ins_contactPerson">
+      <label>Discussion Topics</label>
+      <div class="check-grid" id="ins_discussionTopics">
+        <div class="check-pill" data-v="Volume Commitments" onclick="toggleCheck(this)">Volume Commitments</div>
+        <div class="check-pill" data-v="Claims" onclick="toggleCheck(this)">Claims</div>
+        <div class="check-pill" data-v="SLA / TAT" onclick="toggleCheck(this)">SLA / TAT</div>
+        <div class="check-pill" data-v="Pricing" onclick="toggleCheck(this)">Pricing</div>
+        <div class="check-pill" data-v="Product Launch" onclick="toggleCheck(this)">Product Launch</div>
+        <div class="check-pill" data-v="Payout Structure" onclick="toggleCheck(this)">Payout Structure</div>
+        <div class="check-pill" data-v="Co-marketing" onclick="toggleCheck(this)">Co-marketing</div>
+      </div>
+      <label>Outcome</label>
+      <select id="ins_outcome"><option value="">— Select —</option><option>Positive — Action agreed</option><option>Neutral — Discussion only</option><option>Negative — No progress</option><option>Escalation Required</option></select>
+    </div>
+
+    <!-- SHARED TAIL FIELDS -->
+    <div id="fields-shared" class="card hidden">
+      <h2>Support &amp; Follow-up</h2>
+      <label>Support Required</label>
+      <div class="check-grid" id="shared_supportRequired">
+        <div class="check-pill" data-v="Payout / Commission" onclick="toggleCheck(this)">Payout / Commission</div>
+        <div class="check-pill" data-v="Pricing" onclick="toggleCheck(this)">Pricing</div>
+        <div class="check-pill" data-v="Technology / Portal" onclick="toggleCheck(this)">Technology / Portal</div>
+        <div class="check-pill" data-v="Claims" onclick="toggleCheck(this)">Claims</div>
+        <div class="check-pill" data-v="Lead Support" onclick="toggleCheck(this)">Lead Support</div>
+        <div class="check-pill" data-v="Product Knowledge" onclick="toggleCheck(this)">Product Knowledge</div>
+        <div class="check-pill" data-v="Marketing Collateral" onclick="toggleCheck(this)">Marketing Collateral</div>
+        <div class="check-pill" data-v="Escalation Resolution" onclick="toggleCheck(this)">Escalation Resolution</div>
+        <div class="check-pill" data-v="Training" onclick="toggleCheck(this)">Training</div>
+        <div class="check-pill" data-v="Onboarding / KYC" onclick="toggleCheck(this)">Onboarding / KYC</div>
+      </div>
+      <label>Action Plan</label>
+      <textarea id="shared_actionPlan" placeholder="What needs to happen next?"></textarea>
+      <label>Action Owner</label>
+      <select id="shared_actionOwner"><option value="">— Select —</option><option>Reporting Manager</option><option>Self</option><option>Payout Team</option><option>Zonal Head</option><option>Product Team</option><option>Tech Team</option><option>Claims Team</option><option>Insurer SPOC</option></select>
+      <label>Follow-up Required?</label>
+      <div class="chip-row">
+        <div class="chip" data-val="Yes" onclick="selectChip('shared_followUpRequired',this)">Yes</div>
+        <div class="chip" data-val="No" onclick="selectChip('shared_followUpRequired',this)">No</div>
+      </div>
+      <input type="hidden" id="shared_followUpRequired">
+      <div id="followUpDateBlock" class="hidden">
+        <label>Follow-up Date</label>
+        <input type="date" id="shared_followUpDate">
+      </div>
+      <label>Notes / Comments</label>
+      <textarea id="shared_notes" placeholder="Any additional notes..."></textarea>
+    </div>
+
+    <div class="card">
+      <button class="btn btn-primary" id="submitBtn" onclick="submitVisit()">Submit Visit</button>
+      <button class="btn btn-secondary" onclick="showScreen('home')">Cancel</button>
+      <div id="submitError" class="error-box hidden"></div>
+    </div>
+  </div>
+
+  <!-- SUCCESS SCREEN -->
+  <div id="screen-success" class="hidden">
+    <div class="card" style="text-align:center">
+      <div style="font-size:44px">✅</div>
+      <h1>Visit Recorded</h1>
+      <p class="hint" id="successMsg"></p>
+      <button class="btn btn-primary" onclick="startAnotherVisit()">Add Another Visit Today</button>
+      <button class="btn btn-secondary" onclick="showScreen('home')">Back to Dashboard</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzuw7nfQcUvb_DPVBGU3hDft0pHrqfkNTvVaOxsNDfR3-8NJ5jgATyoLz9h8mI9GtDgJA/exec';
+const APPS_SCRIPT_KEY = 'bir_biling';
+const ROLE_COLORS = { ZH:'#1a2b4a', RH:'#3b82f6', SH:'#10b981', RM:'#f59e0b' };
+
+const CITY_ALIASES = {
+  'bhuneshwar':'Bhubaneswar','bhubneshwar':'Bhubaneswar','bhubaneshwar':'Bhubaneswar',
+  'coochbihar':'Cooch Behar','coochbehar':'Cooch Behar',
+  'n 24 pgn':'North 24 Parganas','south 24 pgn':'South 24 Parganas','north 24 pgn':'North 24 Parganas',
+  'fardabad':'Faridabad','faridabd':'Faridabad','fardabd':'Faridabad',
+  'kkamgaon':'Khamgaon','noda':'Noida','nandad':'Nanded',
+  'ferozpur':'Firozpur','bhathinda':'Bathinda',
+  'nalagargh & baddi':'Nalagarh','nalagargh':'Nalagarh',
+  'vihskapatnam':'Visakhapatnam','chithoor':'Chittoor','tirupathi':'Tirupati',
+  'cochin':'Kochi','sitamahri':'Sitamarhi','nababganj':'Nawabganj',
+  'amathi':'Amethi','raibareily':'Raebareli',
+  'krishna nagar':'Krishnanagar','baraipur':'Baruipur','silligudi':'Siliguri',
+  'asansoal':'Asansol','bardhman':'Bardhaman','kareemnagar':'Karimnagar',
+  'doddabllapur karnataka':'Doddaballapur','tiruvalluar':'Tiruvallur','vijianagaram':'Vizianagaram',
+  'pankchkula':'Panchkula'
+};
+function normalizeCity(name){
+  let s = String(name||'').trim().replace(/\s+/g,' ').replace(/\/.*$/,'').trim();
+  const key = s.toLowerCase();
+  if (CITY_ALIASES[key]) return CITY_ALIASES[key];
+  return key.replace(/\b\w/g, c => c.toUpperCase());
+}
+function haversineKm(lat1,lon1,lat2,lon2){
+  const R=6371;
+  const dLat=(lat2-lat1)*Math.PI/180, dLon=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+function checkLocationForCity(city){
+  return new Promise(resolve=>{
+    if(!navigator.geolocation){resolve({verified:'unavailable'});return;}
+    navigator.geolocation.getCurrentPosition(
+      pos=>{
+        const {latitude:lat,longitude:lng}=pos.coords;
+        const coords=CITY_COORDS[normalizeCity(city)];
+        if(!coords){resolve({verified:'city_unresolved',lat,lng});return;}
+        const distanceKm=Math.round(haversineKm(lat,lng,coords.lat,coords.lng)*10)/10;
+        resolve({verified: distanceKm<=30?'verified':'mismatch', distanceKm, lat, lng});
+      },
+      ()=>resolve({verified:'unavailable'}),
+      {enableHighAccuracy:true,timeout:10000,maximumAge:60000}
+    );
+  });
+}
+
+let CITY_COORDS = {};
+let currentEmployee = null;
+let currentPlans = {};
+let visitsLoggedToday = [];
+let selectedVisitType = null;
+let lastGpsResult = null;
+
+function showScreen(name){
+  ['login','home','form','success'].forEach(s=>{
+    document.getElementById('screen-'+s).classList.toggle('hidden', s!==name);
+  });
+}
+function setLoading(btn, loading, label){
+  btn.disabled = loading;
+  btn.innerHTML = loading ? '<span class="spinner"></span>Please wait...' : label;
+}
+
+async function fetchCityCoords(){
+  try{
+    const res = await fetch(APPS_SCRIPT_URL + '?key=' + encodeURIComponent(APPS_SCRIPT_KEY));
+    const json = await res.json();
+    if (json.city_coords) CITY_COORDS = json.city_coords;
+  }catch(e){ console.warn('city_coords fetch failed', e); }
+}
+
+async function doLogin(){
+  const empId = document.getElementById('loginEmpId').value.trim();
+  const errBox = document.getElementById('loginError');
+  errBox.classList.add('hidden');
+  if(!empId){ errBox.textContent='Please enter your Employee ID.'; errBox.classList.remove('hidden'); return; }
+  const btn = document.getElementById('loginBtn');
+  setLoading(btn, true, 'Continue');
+  try{
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ key: APPS_SCRIPT_KEY, action:'v2Login', employeeCode: empId })
+    });
+    const json = await res.json();
+    if(json.status !== 'success'){
+      errBox.textContent = json.message || 'Employee ID not found. Please check and try again.';
+      errBox.classList.remove('hidden');
+      setLoading(btn,false,'Continue');
+      return;
+    }
+    currentEmployee = json.employee;
+    currentPlans = json.plans || {};
+    renderHome(json);
+    fetchCityCoords();
+    showScreen('home');
+  }catch(e){
+    errBox.textContent = 'Could not reach the server. Check your connection and try again.';
+    errBox.classList.remove('hidden');
+  }
+  setLoading(btn,false,'Continue');
+}
+
+function logout(){
+  currentEmployee=null; currentPlans={}; visitsLoggedToday=[];
+  document.getElementById('loginEmpId').value='';
+  document.getElementById('visitsAddedList').innerHTML='';
+  showScreen('login');
+}
+
+function renderHome(loginResult){
+  const e = loginResult.employee;
+  document.getElementById('homeName').textContent = e.name;
+  const roleBadge = document.getElementById('homeRoleBadge');
+  roleBadge.textContent = e.role;
+  roleBadge.style.background = ROLE_COLORS[e.role] || '#64748b';
+  document.getElementById('homeZone').textContent = e.zone + (e.region ? ' · ' + e.region : '');
+  document.getElementById('topbarUser').textContent = e.name;
+
+  const planBadge = document.getElementById('homePlanBadge');
+  if (loginResult.todaysCity){
+    document.getElementById('homePlanCity').textContent = loginResult.todaysCity;
+    planBadge.classList.remove('hidden');
+  } else {
+    planBadge.classList.add('hidden');
+  }
+
+  const stats = loginResult.stats || { totalVisits:0, thisMonthVisits:0 };
+  const plannedDays = e.plan || 0;
+  document.getElementById('statTotal').textContent = stats.thisMonthVisits;
+  document.getElementById('statPlanned').textContent = plannedDays;
+  document.getElementById('statPct').textContent = plannedDays ? Math.min(100, Math.round((stats.thisMonthVisits/plannedDays)*100)) + '%' : '—';
+}
+
+function selectVisitType(type){
+  selectedVisitType = type;
+  document.querySelectorAll('#visitTypeChips .chip').forEach(c=>c.classList.toggle('active', c.dataset.type===type));
+  ['Partner Meet','Team Connect','Insurer Meet'].forEach(t=>{
+    document.getElementById('fields-'+t).classList.toggle('hidden', t!==type);
+  });
+  document.getElementById('fields-shared').classList.remove('hidden');
+  if (type === 'Partner Meet') togglePartnerStatusBlocks('Active');
+}
+
+function selectChip(hiddenInputId, el){
+  const parent = el.parentElement;
+  parent.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById(hiddenInputId).value = el.dataset.val;
+  if (hiddenInputId === 'pm_partnerStatus') togglePartnerStatusBlocks(el.dataset.val);
+  if (hiddenInputId === 'shared_followUpRequired'){
+    document.getElementById('followUpDateBlock').classList.toggle('hidden', el.dataset.val !== 'Yes');
+  }
+}
+function togglePartnerStatusBlocks(status){
+  document.getElementById('pm_activeBlock').classList.toggle('hidden', status !== 'Active');
+  document.getElementById('pm_inactiveBlock').classList.toggle('hidden', status !== 'Inactive');
+}
+function toggleCheck(el){ el.classList.toggle('on'); }
+function getChecked(containerId){
+  return [...document.querySelectorAll('#'+containerId+' .check-pill.on')].map(el=>el.dataset.v);
+}
+
+function onDateChange(){
+  const dateVal = document.getElementById('f_visitDate').value;
+  if(!dateVal) return;
+  const d = new Date(dateVal + 'T00:00:00');
+  const dayKey = d.getDate() + '-' + d.toLocaleString('en-US',{month:'short'});
+  const plannedCity = currentPlans[dayKey];
+  if (plannedCity && !document.getElementById('f_visitCity').value){
+    document.getElementById('f_visitCity').value = plannedCity;
+  }
+}
+
+function resetForm(){
+  selectedVisitType = null;
+  lastGpsResult = null;
+  document.querySelectorAll('#visitTypeChips .chip').forEach(c=>c.classList.remove('active'));
+  ['Partner Meet','Team Connect','Insurer Meet','shared'].forEach(t=>document.getElementById('fields-'+t).classList.add('hidden'));
+  document.querySelectorAll('input[type=text], textarea').forEach(el=>el.value='');
+  document.querySelectorAll('select').forEach(el=>el.selectedIndex=0);
+  document.querySelectorAll('.chip.active').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.check-pill.on').forEach(el=>el.classList.remove('on'));
+  document.getElementById('pm_partnerStatus').value='';
+  document.getElementById('shared_followUpRequired').value='';
+  document.getElementById('followUpDateBlock').classList.add('hidden');
+  document.getElementById('locStatus').classList.add('hidden');
+  document.getElementById('submitError').classList.add('hidden');
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById('f_visitDate').value = today;
+  onDateChange();
+}
+
+function startAnotherVisit(){
+  resetForm();
+  showScreen('form');
+}
+
+async function submitVisit(){
+  const errBox = document.getElementById('submitError');
+  errBox.classList.add('hidden');
+  const visitDate = document.getElementById('f_visitDate').value;
+  const visitCity = document.getElementById('f_visitCity').value.trim();
+
+  if(!selectedVisitType){ errBox.textContent='Please select a visit type.'; errBox.classList.remove('hidden'); return; }
+  if(!visitDate){ errBox.textContent='Please select a visit date.'; errBox.classList.remove('hidden'); return; }
+  if(!visitCity){ errBox.textContent='Please enter the visit city.'; errBox.classList.remove('hidden'); return; }
+  if(selectedVisitType==='Partner Meet' && !document.getElementById('pm_partnerName').value.trim()){
+    errBox.textContent='Partner name is required.'; errBox.classList.remove('hidden'); return;
+  }
+  if(selectedVisitType==='Team Connect' && !document.getElementById('tc_meetingType').value){
+    errBox.textContent='Meeting type is required.'; errBox.classList.remove('hidden'); return;
+  }
+  if(selectedVisitType==='Insurer Meet' && !document.getElementById('ins_insurerName').value.trim()){
+    errBox.textContent='Insurer name is required.'; errBox.classList.remove('hidden'); return;
+  }
+
+  const btn = document.getElementById('submitBtn');
+  setLoading(btn, true, 'Submit Visit');
+
+  const locStatus = document.getElementById('locStatus');
+  locStatus.classList.remove('hidden');
+  locStatus.textContent = '📡 Checking your location...';
+  const gps = await checkLocationForCity(visitCity);
+  lastGpsResult = gps;
+  if (gps.verified === 'verified') locStatus.innerHTML = '<span style="color:var(--green)">✅ Location verified · ' + gps.distanceKm + 'km from ' + visitCity + '</span>';
+  else if (gps.verified === 'mismatch') locStatus.innerHTML = '<span style="color:var(--amber)">⚠️ ' + gps.distanceKm + 'km from ' + visitCity + ' — submitting anyway, but flagged for review.</span>';
+  else if (gps.verified === 'city_unresolved') locStatus.innerHTML = '<span style="color:var(--muted)">ℹ️ Could not verify this city\'s location, but your GPS was recorded.</span>';
+  else locStatus.innerHTML = '<span style="color:var(--muted)">ℹ️ Location unavailable — submitting without GPS verification.</span>';
+
+  const payload = {
+    common: {
+      employeeCode: currentEmployee.id,
+      visitDate: visitDate,
+      visitType: selectedVisitType,
+      visitCity: visitCity
+    },
+    gps: { latitude: gps.lat || 0, longitude: gps.lng || 0, accuracy: gps.distanceKm != null ? gps.distanceKm : '' },
+    photoUrls: []
+  };
+
+  if (selectedVisitType === 'Partner Meet'){
+    const status = document.getElementById('pm_partnerStatus').value;
+    payload.partner = {
+      partnerName: document.getElementById('pm_partnerName').value.trim(),
+      partnerGid: document.getElementById('pm_partnerGid').value.trim(),
+      partnerType: document.getElementById('pm_partnerType').value,
+      partnerCategory: document.getElementById('pm_partnerCategory').value,
+      partnerStatus: status,
+      activeIssues: status==='Active' ? getChecked('pm_activeIssues') : [],
+      inactiveIssues: status==='Inactive' ? getChecked('pm_inactiveIssues') : [],
+      activationPossibility: status==='Inactive' ? document.getElementById('pm_activationPossibility').value.trim() : '',
+      businessOpportunity: document.getElementById('pm_businessOpportunity').value,
+      conversionProbability: document.getElementById('pm_conversionProbability').value,
+      supportRequired: getChecked('shared_supportRequired'),
+      actionOwner: document.getElementById('shared_actionOwner').value,
+      followUpRequired: document.getElementById('shared_followUpRequired').value === 'Yes',
+      followUpDate: document.getElementById('shared_followUpDate').value,
+      additionalNotes: document.getElementById('shared_notes').value.trim()
+    };
+  } else if (selectedVisitType === 'Team Connect'){
+    payload.team = {
+      meetingType: document.getElementById('tc_meetingType').value,
+      teamMemberName: document.getElementById('tc_teamMemberName').value.trim(),
+      healthAssessment: document.getElementById('tc_healthAssessment').value,
+      challenges: getChecked('tc_challenges'),
+      supportRequired: getChecked('shared_supportRequired'),
+      actionPlan: document.getElementById('shared_actionPlan').value.trim(),
+      actionOwner: document.getElementById('shared_actionOwner').value,
+      followUpRequired: document.getElementById('shared_followUpRequired').value === 'Yes',
+      followUpDate: document.getElementById('shared_followUpDate').value,
+      additionalComments: document.getElementById('shared_notes').value.trim()
+    };
+  } else if (selectedVisitType === 'Insurer Meet'){
+    payload.insurer = {
+      insurerName: document.getElementById('ins_insurerName').value.trim(),
+      contactPerson: document.getElementById('ins_contactPerson').value.trim(),
+      discussionTopics: getChecked('ins_discussionTopics'),
+      outcome: document.getElementById('ins_outcome').value,
+      supportRequired: getChecked('shared_supportRequired'),
+      actionPlan: document.getElementById('shared_actionPlan').value.trim(),
+      actionOwner: document.getElementById('shared_actionOwner').value,
+      followUpRequired: document.getElementById('shared_followUpRequired').value === 'Yes',
+      followUpDate: document.getElementById('shared_followUpDate').value,
+      comments: document.getElementById('shared_notes').value.trim()
+    };
+  }
+
+  try{
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ key: APPS_SCRIPT_KEY, action:'v2SubmitVisit', payload: payload })
+    });
+    const json = await res.json();
+    if (json.status !== 'success'){
+      errBox.textContent = json.message || 'Something went wrong. Please try again.';
+      errBox.classList.remove('hidden');
+      setLoading(btn,false,'Submit Visit');
+      return;
+    }
+    visitsLoggedToday.push({ type: selectedVisitType, city: visitCity, id: json.data.submissionId });
+    renderVisitsAddedList();
+    document.getElementById('successMsg').textContent = selectedVisitType + ' at ' + visitCity + ' recorded successfully (ID: ' + json.data.submissionId + ').';
+    showScreen('success');
+  }catch(e){
+    errBox.textContent = 'Could not reach the server. Your visit was not saved — please try again.';
+    errBox.classList.remove('hidden');
+  }
+  setLoading(btn,false,'Submit Visit');
+}
+
+function renderVisitsAddedList(){
+  const el = document.getElementById('visitsAddedList');
+  if (!visitsLoggedToday.length){ el.innerHTML=''; return; }
+  el.innerHTML = '<div class="card"><h2>Logged this session</h2>' +
+    visitsLoggedToday.map(v => '<div class="visit-added"><span>' + v.type + ' · ' + v.city + '</span><span style="color:var(--green)">✓ Saved</span></div>').join('') +
+    '</div>';
+}
+
+document.getElementById('loginEmpId').addEventListener('keypress', e => { if(e.key==='Enter') doLogin(); });
+resetForm();
+</script>
+</body>
+</html>

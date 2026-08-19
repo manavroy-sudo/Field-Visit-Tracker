@@ -538,7 +538,13 @@ function doPost(e) {
       const tz = SpreadsheetApp.openById(TRAVEL_SHEET_ID).getSpreadsheetTimeZone();
       const todayKey = Utilities.formatDate(new Date(), tz, 'd-MMM');
       const todaysCity = (travel.plans[employee.id] || {})[todayKey] || '';
-      return json_({ status: 'success', employee: employee, todaysCity: todaysCity, plans: travel.plans[employee.id] || {} });
+      return json_({
+        status: 'success',
+        employee: employee,
+        todaysCity: todaysCity,
+        plans: travel.plans[employee.id] || {},
+        stats: v2EmployeeStats_(employee.id)
+      });
     }
 
     // V2 dashboard: submit a visit into the "Responses" tab (FORM_RESPONSES_SHEET_ID).
@@ -883,6 +889,35 @@ function v2FindEmployee_(employeeCode) {
   if (!code) return null;
   const travel = getTravelPlanData_();
   return travel.roster.find(l => String(l.id).trim() === code) || null;
+}
+
+/**
+ * Plan-vs-actual snapshot for one employee, shown on the V2 dashboard's
+ * landing screen after login: how many visits they've actually logged
+ * (all-time and this month, by visit type) against their planned-days
+ * count for the current month (from the roster's own "Plan" column).
+ */
+function v2EmployeeStats_(employeeCode) {
+  const stats = { totalVisits: 0, thisMonthVisits: 0, byType: { 'Partner Meet': 0, 'Team Connect': 0, 'Insurer Meet': 0 } };
+  const sh = v2ResponsesSheet_();
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return stats;
+  const n = lastRow - 1;
+  const tz = Session.getScriptTimeZone();
+  const thisMonthKey = Utilities.formatDate(new Date(), tz, 'yyyy-MM');
+  const codes = sh.getRange(2, 4, n, 1).getValues();      // D: Employee Code
+  const types = sh.getRange(2, 9, n, 1).getValues();      // I: Visit Type
+  const dates = sh.getRange(2, 8, n, 1).getValues();      // H: Visit Date
+  for (let i = 0; i < n; i++) {
+    if (String(codes[i][0]).trim() !== String(employeeCode).trim()) continue;
+    stats.totalVisits++;
+    const vt = String(types[i][0] || '').trim();
+    if (stats.byType.hasOwnProperty(vt)) stats.byType[vt]++;
+    const vd = dates[i][0];
+    const dateKey = vd instanceof Date && !isNaN(vd.getTime()) ? Utilities.formatDate(vd, tz, 'yyyy-MM-dd') : String(vd || '').trim();
+    if (dateKey.indexOf(thisMonthKey) === 0) stats.thisMonthVisits++;
+  }
+  return stats;
 }
 
 function v2ValidatePayload_(p) {
