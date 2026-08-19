@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Field Visit Tracker — Central Dashboard</title>
+<style>
+  :root{
+    --navy:#1a2b4a; --blue:#3b82f6; --green:#10b981; --amber:#f59e0b; --red:#ef4444;
+    --bg:#f4f6f9; --card:#ffffff; --border:#e2e8f0; --text:#1e293b; --muted:#64748b;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);}
+  .topbar{background:var(--navy);color:#fff;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:20;}
+  .topbar .brand{font-weight:700;font-size:16px;}
+  .topbar .sub{font-size:11px;opacity:0.75;}
+  .wrap{max-width:1280px;margin:0 auto;padding:20px;}
+  .login-wrap{max-width:420px;margin:60px auto;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,0.04);}
+  h1{font-size:22px;margin:0 0 6px;}
+  h2{font-size:16px;margin:0 0 14px;color:var(--navy);}
+  h3{font-size:13px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin:0 0 10px;}
+  p.hint{color:var(--muted);font-size:13px;margin:4px 0 16px;}
+  label{display:block;font-size:13px;font-weight:600;margin:14px 0 6px;color:#334155;}
+  input[type=text],select{width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:15px;background:#fff;color:var(--text);}
+  input:focus,select:focus{outline:none;border-color:var(--blue);}
+  .btn{display:block;width:100%;padding:14px;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;text-align:center;background:var(--blue);color:#fff;}
+  .btn:disabled{background:#93c5fd;}
+  .error-box{background:#fef2f2;border:1px solid #fecaca;color:#991b1b;padding:10px 14px;border-radius:10px;font-size:13.5px;margin-top:10px;}
+  .hidden{display:none !important;}
+  .spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,0.4);border-top-color:#fff;border-radius:50%;display:inline-block;animation:spin 0.7s linear infinite;vertical-align:-3px;margin-right:6px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;}
+  .kpi{background:#f8fafc;border-radius:12px;padding:14px;text-align:center;border:1px solid var(--border);}
+  .kpi .num{font-size:26px;font-weight:800;color:var(--navy);}
+  .kpi .num.green{color:var(--green);} .kpi .num.red{color:var(--red);} .kpi .num.amber{color:var(--amber);}
+  .kpi .lbl{font-size:11.5px;color:var(--muted);margin-top:4px;}
+
+  .filters-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;}
+  .filters-row > div{flex:1;min-width:150px;}
+  .filters-row label{margin:0 0 6px;}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{text-align:left;padding:10px 12px;background:#f1f5f9;color:var(--navy);font-weight:700;cursor:pointer;white-space:nowrap;position:sticky;top:0;}
+  th:hover{background:#e2e8f0;}
+  td{padding:9px 12px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  tr.clickable{cursor:pointer;}
+  tr.clickable:hover td{background:#f8fafc;}
+  .table-scroll{overflow-x:auto;max-height:480px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;}
+  .badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11.5px;font-weight:700;}
+  .badge.green{background:#dcfce7;color:#166534;} .badge.amber{background:#fef3c7;color:#92400e;} .badge.red{background:#fee2e2;color:#991b1b;} .badge.grey{background:#e2e8f0;color:#475569;}
+  .role-badge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;color:#fff;}
+  .progress-bar{background:#e2e8f0;border-radius:6px;height:8px;width:80px;overflow:hidden;display:inline-block;vertical-align:middle;}
+  .progress-fill{height:100%;border-radius:6px;}
+
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media(max-width:800px){.grid-2{grid-template-columns:1fr;}}
+
+  .insight-item{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13.5px;}
+  .insight-item:last-child{border-bottom:none;}
+  .insight-section-title{font-weight:700;color:var(--navy);margin:14px 0 6px;font-size:13px;}
+  .insight-section-title:first-child{margin-top:0;}
+
+  .tabs{display:flex;gap:4px;border-bottom:2px solid var(--border);margin-bottom:16px;}
+  .tab{padding:10px 18px;cursor:pointer;font-weight:600;font-size:14px;color:var(--muted);border-bottom:3px solid transparent;margin-bottom:-2px;}
+  .tab.active{color:var(--navy);border-bottom-color:var(--blue);}
+
+  .modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,0.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px;}
+  .modal{background:#fff;border-radius:16px;max-width:720px;width:100%;max-height:85vh;overflow-y:auto;padding:24px;}
+  .modal-close{float:right;cursor:pointer;font-size:20px;color:var(--muted);border:none;background:none;}
+  .search-input{margin-bottom:12px;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <div class="brand">Field Visit Tracker</div>
+    <div class="sub">Central Dashboard — PAN India</div>
+  </div>
+  <div id="topbarUser" style="font-size:13px;"></div>
+</div>
+
+<!-- LOGIN -->
+<div id="screen-login" class="wrap login-wrap">
+  <div class="card">
+    <h1>Central Team Sign in</h1>
+    <p class="hint">Enter your Central Login ID.</p>
+    <label>Login ID</label>
+    <input type="text" id="loginId" placeholder="e.g. 0001" autofocus>
+    <button class="btn" id="loginBtn" style="margin-top:16px" onclick="doLogin()">Continue</button>
+    <div id="loginError" class="error-box hidden"></div>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="screen-dashboard" class="wrap hidden">
+
+  <div class="card">
+    <div class="filters-row">
+      <div>
+        <label>Zone</label>
+        <select id="filterZone" onchange="applyFilters()"><option value="">All Zones</option></select>
+      </div>
+      <div>
+        <label>State</label>
+        <select id="filterState" onchange="applyFilters()"><option value="">All States</option></select>
+      </div>
+      <div>
+        <label>Search Leader</label>
+        <input type="text" id="filterSearch" placeholder="Search by name..." oninput="applyFilters()">
+      </div>
+      <div style="flex:0 0 auto;">
+        <label>&nbsp;</label>
+        <button class="btn" style="background:#eef2f7;color:var(--navy);width:auto;padding:12px 20px;" onclick="resetFilters()">Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Executive Summary <span id="genAt" style="font-weight:400;text-transform:none;letter-spacing:0;"></span></h3>
+    <div class="kpi-grid" id="kpiGrid"></div>
+  </div>
+
+  <div class="card">
+    <h2>Key Insights</h2>
+    <div id="insightsBox"></div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="leaders" onclick="switchTab('leaders')">Leader-Wise / Visit Tracker</div>
+    <div class="tab" data-tab="zone" onclick="switchTab('zone')">Zone-Wise</div>
+    <div class="tab" data-tab="state" onclick="switchTab('state')">State-Wise</div>
+    <div class="tab" data-tab="city" onclick="switchTab('city')">City-Wise</div>
+  </div>
+
+  <div id="tab-leaders" class="card">
+    <h2>Leader-Wise Planned vs Actual</h2>
+    <p class="hint">Click any row to drill down into that leader's full plan, actual visits, and partner-level detail.</p>
+    <div class="table-scroll">
+      <table id="leaderTable">
+        <thead>
+          <tr>
+            <th onclick="sortLeaders('name')">Leader</th>
+            <th onclick="sortLeaders('role')">Role</th>
+            <th onclick="sortLeaders('zone')">Zone</th>
+            <th onclick="sortLeaders('state')">State</th>
+            <th onclick="sortLeaders('plannedDays')">Planned</th>
+            <th onclick="sortLeaders('completedDays')">Completed</th>
+            <th onclick="sortLeaders('pendingDays')">Pending</th>
+            <th onclick="sortLeaders('completionPct')">Completion %</th>
+            <th onclick="sortLeaders('formsFilled')">Total Forms</th>
+            <th onclick="sortLeaders('lastVisitAt')">Last Visit</th>
+          </tr>
+        </thead>
+        <tbody id="leaderTbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="tab-zone" class="card hidden">
+    <h2>Zone-Wise Performance</h2>
+    <div class="table-scroll"><table>
+      <thead><tr><th>Zone</th><th>Leaders</th><th>Planned</th><th>Completed</th><th>Pending</th><th>Completion %</th></tr></thead>
+      <tbody id="zoneTbody"></tbody>
+    </table></div>
+  </div>
+
+  <div id="tab-state" class="card hidden">
+    <h2>State-Wise Performance</h2>
+    <div class="table-scroll"><table>
+      <thead><tr><th>State</th><th>Leaders</th><th>Planned</th><th>Completed</th><th>Pending</th><th>Completion %</th></tr></thead>
+      <tbody id="stateTbody"></tbody>
+    </table></div>
+  </div>
+
+  <div id="tab-city" class="card hidden">
+    <h2>City-Wise Actual Visits</h2>
+    <p class="hint">Based on the Visit City recorded on each submission (PAN-India, not affected by the Zone/State filters above).</p>
+    <div class="table-scroll"><table>
+      <thead><tr><th>City</th><th>Total Visits</th></tr></thead>
+      <tbody id="cityTbody"></tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <button class="btn" style="background:#eef2f7;color:var(--navy);" onclick="logout()">Sign out</button>
+  </div>
+</div>
+
+<!-- LEADER DRILLDOWN MODAL -->
+<div id="drilldownOverlay" class="modal-overlay hidden" onclick="if(event.target===this) closeDrilldown()">
+  <div class="modal">
+    <button class="modal-close" onclick="closeDrilldown()">&times;</button>
+    <div id="drilldownContent">Loading...</div>
+  </div>
+</div>
+
+<script>
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzuw7nfQcUvb_DPVBGU3hDft0pHrqfkNTvVaOxsNDfR3-8NJ5jgATyoLz9h8mI9GtDgJA/exec';
+const APPS_SCRIPT_KEY = 'bir_biling';
+const ROLE_COLORS = { ZH:'#1a2b4a', RH:'#3b82f6', SH:'#10b981', RM:'#f59e0b', CENTRAL:'#7c3aed' };
+
+let CENTRAL_DATA = null;
+let filteredLeaders = [];
+let sortKey = 'zone', sortDir = 1;
+
+function setLoading(btn, loading, label){ btn.disabled=loading; btn.innerHTML = loading ? '<span class="spinner"></span>Please wait...' : label; }
+
+async function callApi(action, extra){
+  const res = await fetch(APPS_SCRIPT_URL, {
+    method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify(Object.assign({ key: APPS_SCRIPT_KEY, action: action }, extra || {}))
+  });
+  return res.json();
+}
+
+async function doLogin(){
+  const id = document.getElementById('loginId').value.trim();
+  const errBox = document.getElementById('loginError');
+  errBox.classList.add('hidden');
+  if(!id){ errBox.textContent='Please enter a Login ID.'; errBox.classList.remove('hidden'); return; }
+  const btn = document.getElementById('loginBtn');
+  setLoading(btn, true, 'Continue');
+  try{
+    const json = await callApi('v2Login', { employeeCode: id });
+    if(json.status !== 'success' || !json.central){
+      errBox.textContent = json.central===false || json.status==='success' ? 'This ID does not have Central access.' : (json.message || 'Login failed.');
+      errBox.classList.remove('hidden');
+      setLoading(btn,false,'Continue');
+      return;
+    }
+    document.getElementById('topbarUser').textContent = json.employee.name;
+    document.getElementById('screen-login').classList.add('hidden');
+    document.getElementById('screen-dashboard').classList.remove('hidden');
+    await loadCentralData();
+  }catch(e){
+    errBox.textContent = 'Could not reach the server.';
+    errBox.classList.remove('hidden');
+  }
+  setLoading(btn,false,'Continue');
+}
+
+function logout(){
+  CENTRAL_DATA=null;
+  document.getElementById('loginId').value='';
+  document.getElementById('screen-dashboard').classList.add('hidden');
+  document.getElementById('screen-login').classList.remove('hidden');
+}
+
+async function loadCentralData(){
+  const json = await callApi('v2CentralData');
+  if (json.status !== 'success'){ alert('Failed to load dashboard data: ' + (json.message||'')); return; }
+  CENTRAL_DATA = json.data;
+  document.getElementById('genAt').textContent = '(as of ' + new Date(CENTRAL_DATA.generatedAt).toLocaleString() + ')';
+  populateFilterOptions();
+  applyFilters();
+  renderZoneTable(CENTRAL_DATA.byZone);
+  renderStateTable(CENTRAL_DATA.byState);
+  renderCityTable(CENTRAL_DATA.byCity);
+  renderInsights(CENTRAL_DATA.insights);
+}
+
+function populateFilterOptions(){
+  const zones = [...new Set(CENTRAL_DATA.leaders.map(l=>l.zone))].sort();
+  const states = [...new Set(CENTRAL_DATA.leaders.map(l=>l.state))].sort();
+  const zoneSel = document.getElementById('filterZone');
+  const stateSel = document.getElementById('filterState');
+  zoneSel.innerHTML = '<option value="">All Zones</option>' + zones.map(z=>'<option value="'+z+'">'+z+'</option>').join('');
+  stateSel.innerHTML = '<option value="">All States</option>' + states.map(s=>'<option value="'+s+'">'+s+'</option>').join('');
+}
+
+function resetFilters(){
+  document.getElementById('filterZone').value='';
+  document.getElementById('filterState').value='';
+  document.getElementById('filterSearch').value='';
+  applyFilters();
+}
+
+function applyFilters(){
+  if(!CENTRAL_DATA) return;
+  const zone = document.getElementById('filterZone').value;
+  const state = document.getElementById('filterState').value;
+  const search = document.getElementById('filterSearch').value.trim().toLowerCase();
+  filteredLeaders = CENTRAL_DATA.leaders.filter(l =>
+    (!zone || l.zone===zone) && (!state || l.state===state) && (!search || l.name.toLowerCase().includes(search))
+  );
+  renderKpis(filteredLeaders);
+  sortLeaders(sortKey, true);
+}
+
+function renderKpis(leaders){
+  const totalPlanned = leaders.reduce((s,l)=>s+l.plannedDays,0);
+  const totalCompleted = leaders.reduce((s,l)=>s+l.completedDays,0);
+  const totalPending = leaders.reduce((s,l)=>s+l.pendingDays,0);
+  const pct = totalPlanned ? Math.round((totalCompleted/totalPlanned)*100) : 0;
+  const s = CENTRAL_DATA.summary;
+  const kpis = [
+    { num: leaders.length, lbl:'Total Leaders' },
+    { num: s.totalPartners, lbl:'Total Partners Met' },
+    { num: totalPlanned, lbl:'Planned Visits (MTD)' },
+    { num: totalCompleted, lbl:'Completed Visits', cls:'green' },
+    { num: totalPending, lbl:'Pending Visits', cls: totalPending>0?'amber':'' },
+    { num: pct+'%', lbl:'Completion %', cls: pct>=75?'green':(pct>=50?'amber':'red') },
+    { num: s.activePartners, lbl:'Active Partners', cls:'green' },
+    { num: s.inactivePartners, lbl:'Inactive Partners', cls:'red' },
+    { num: s.partnerMeets, lbl:'Partner Meets' },
+    { num: s.teamConnects, lbl:'Team Connects' },
+    { num: s.insurerMeets, lbl:'Insurer Meets' }
+  ];
+  document.getElementById('kpiGrid').innerHTML = kpis.map(k =>
+    '<div class="kpi"><div class="num '+(k.cls||'')+'">'+k.num+'</div><div class="lbl">'+k.lbl+'</div></div>'
+  ).join('');
+}
+
+function completionBadgeClass(pct){
+  if (pct===null) return 'grey';
+  if (pct>=75) return 'green';
+  if (pct>=50) return 'amber';
+  return 'red';
+}
+function progressColor(pct){
+  if (pct===null) return '#94a3b8';
+  if (pct>=75) return '#10b981';
+  if (pct>=50) return '#f59e0b';
+  return '#ef4444';
+}
+
+function sortLeaders(key, keepDir){
+  if (!keepDir){
+    sortDir = (sortKey===key) ? -sortDir : 1;
+  }
+  sortKey = key;
+  const sorted = filteredLeaders.slice().sort((a,b)=>{
+    let av=a[key], bv=b[key];
+    if (key==='lastVisitAt'){ av = av?new Date(av).getTime():0; bv = bv?new Date(bv).getTime():0; }
+    if (typeof av === 'string') return sortDir * av.localeCompare(bv);
+    return sortDir * (( av||0) - (bv||0));
+  });
+  renderLeaderTable(sorted);
+}
+
+function renderLeaderTable(leaders){
+  document.getElementById('leaderTbody').innerHTML = leaders.map(l => {
+    const pct = l.completionPct;
+    const roleColor = ROLE_COLORS[l.role] || '#64748b';
+    return '<tr class="clickable" onclick="openDrilldown(\'' + l.name.replace(/'/g,"\\'") + '\')">' +
+      '<td><b>'+l.name+'</b></td>' +
+      '<td><span class="role-badge" style="background:'+roleColor+'">'+l.role+'</span></td>' +
+      '<td>'+l.zone+'</td>' +
+      '<td>'+l.state+'</td>' +
+      '<td>'+l.plannedDays+'</td>' +
+      '<td>'+l.completedDays+'</td>' +
+      '<td>'+(l.pendingDays>0?'<span class="badge amber">'+l.pendingDays+'</span>':'0')+'</td>' +
+      '<td><span class="progress-bar"><span class="progress-fill" style="width:'+(pct||0)+'%;background:'+progressColor(pct)+'"></span></span> <span class="badge '+completionBadgeClass(pct)+'">'+(pct===null?'—':pct+'%')+'</span></td>' +
+      '<td>'+l.formsFilled+'</td>' +
+      '<td>'+l.lastVisitLabel+'</td>' +
+    '</tr>';
+  }).join('') || '<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:24px;">No leaders match these filters.</td></tr>';
+}
+
+function renderZoneTable(rows){
+  document.getElementById('zoneTbody').innerHTML = rows.map(r =>
+    '<tr><td><b>'+r.key+'</b></td><td>'+r.leaders+'</td><td>'+r.plannedDays+'</td><td>'+r.completedDays+'</td>' +
+    '<td>'+r.pendingDays+'</td><td><span class="badge '+completionBadgeClass(r.completionPct)+'">'+(r.completionPct===null?'—':r.completionPct+'%')+'</span></td></tr>'
+  ).join('');
+}
+function renderStateTable(rows){
+  document.getElementById('stateTbody').innerHTML = rows.map(r =>
+    '<tr><td><b>'+r.key+'</b></td><td>'+r.leaders+'</td><td>'+r.plannedDays+'</td><td>'+r.completedDays+'</td>' +
+    '<td>'+r.pendingDays+'</td><td><span class="badge '+completionBadgeClass(r.completionPct)+'">'+(r.completionPct===null?'—':r.completionPct+'%')+'</span></td></tr>'
+  ).join('');
+}
+function renderCityTable(rows){
+  document.getElementById('cityTbody').innerHTML = rows.map(r =>
+    '<tr><td><b>'+r.city+'</b></td><td>'+r.visits+'</td></tr>'
+  ).join('');
+}
+
+function renderInsights(insights){
+  let html = '';
+  html += '<div class="insight-section-title">⚠️ Lowest Completion (needs follow-up)</div>';
+  html += insights.lowestPerformers.length ? insights.lowestPerformers.map(l =>
+    '<div class="insight-item"><span>'+l.name+' <span style="color:var(--muted)">('+l.zone+')</span></span><span class="badge '+completionBadgeClass(l.completionPct)+'">'+l.completionPct+'%</span></div>'
+  ).join('') : '<div class="insight-item"><span style="color:var(--muted)">No planned-visit data to compare.</span></div>';
+
+  html += '<div class="insight-section-title">🏆 Top Performers</div>';
+  html += insights.topPerformers.map(l =>
+    '<div class="insight-item"><span>'+l.name+' <span style="color:var(--muted)">('+l.zone+')</span></span><span class="badge green">'+l.completionPct+'%</span></div>'
+  ).join('');
+
+  if (insights.zeroCompletionCount > 0){
+    html += '<div class="insight-section-title">🔴 Zero Visits Logged Despite a Plan ('+insights.zeroCompletionCount+')</div>';
+    html += insights.zeroCompletionLeaders.slice(0,5).map(l =>
+      '<div class="insight-item"><span>'+l.name+' <span style="color:var(--muted)">('+l.zone+')</span></span><span class="badge red">'+l.plannedDays+' planned, 0 done</span></div>'
+    ).join('');
+  }
+
+  if (insights.pendingFollowUpLeaders.length){
+    html += '<div class="insight-section-title">📌 Highest Pending Follow-ups</div>';
+    html += insights.pendingFollowUpLeaders.map(l =>
+      '<div class="insight-item"><span>'+l.name+' <span style="color:var(--muted)">('+l.zone+')</span></span><span class="badge amber">'+l.pendingFollowUps+' pending</span></div>'
+    ).join('');
+  }
+
+  html += '<div class="insight-section-title">📊 Weakest Geography</div>';
+  if (insights.weakestZone) html += '<div class="insight-item"><span>Zone: '+insights.weakestZone.key+'</span><span class="badge '+completionBadgeClass(insights.weakestZone.completionPct)+'">'+insights.weakestZone.completionPct+'%</span></div>';
+  if (insights.weakestState) html += '<div class="insight-item"><span>State: '+insights.weakestState.key+'</span><span class="badge '+completionBadgeClass(insights.weakestState.completionPct)+'">'+insights.weakestState.completionPct+'%</span></div>';
+
+  html += '<div class="insight-section-title">🧭 Partner Signal</div>';
+  if (insights.topIssue) html += '<div class="insight-item"><span>Most common partner problem</span><span class="badge red">'+insights.topIssue.key+' ('+insights.topIssue.value+')</span></div>';
+  if (insights.topBusinessOpportunity) html += '<div class="insight-item"><span>Most common opportunity signal</span><span class="badge green">'+insights.topBusinessOpportunity.key+' ('+insights.topBusinessOpportunity.value+')</span></div>';
+
+  document.getElementById('insightsBox').innerHTML = html;
+}
+
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===name));
+  ['leaders','zone','state','city'].forEach(t=>document.getElementById('tab-'+t).classList.toggle('hidden', t!==name));
+}
+
+async function openDrilldown(name){
+  document.getElementById('drilldownOverlay').classList.remove('hidden');
+  document.getElementById('drilldownContent').innerHTML = 'Loading...';
+  const json = await callApi('v2LeaderDrilldown', { employeeName: name });
+  if (json.status !== 'success'){
+    document.getElementById('drilldownContent').innerHTML = '<button class="modal-close" onclick="closeDrilldown()">&times;</button><p>Could not load details: '+(json.message||'')+'</p>';
+    return;
+  }
+  const leader = json.leader, plans = json.plans, visits = json.visits;
+  const roleColor = ROLE_COLORS[leader.role] || '#64748b';
+
+  let planRows = Object.keys(plans).map(d => '<tr><td>'+d+'</td><td>'+plans[d]+'</td></tr>').join('') || '<tr><td colspan="2" style="color:var(--muted)">No plan found for this month.</td></tr>';
+
+  let visitRows = visits.map(v =>
+    '<tr><td>'+v.visitDate+'</td><td>'+v.visitType+'</td><td>'+v.visitCity+'</td><td>'+(v.partnerName||'—')+'</td>' +
+    '<td>'+(v.followUpRequired==='Yes'?'<span class="badge amber">Yes</span>':'No')+'</td></tr>'
+  ).join('') || '<tr><td colspan="5" style="color:var(--muted)">No visits recorded yet.</td></tr>';
+
+  document.getElementById('drilldownContent').innerHTML =
+    '<button class="modal-close" onclick="closeDrilldown()">&times;</button>' +
+    '<h1>'+leader.name+' <span class="role-badge" style="background:'+roleColor+'">'+leader.role+'</span></h1>' +
+    '<p class="hint">'+leader.zone+' · '+leader.region+' · Base: '+(leader.base||'—')+' · Planned days this month: '+(leader.plan||0)+'</p>' +
+    '<div class="grid-2">' +
+      '<div><h3>Planned (this month)</h3><div class="table-scroll" style="max-height:260px"><table><thead><tr><th>Date</th><th>Planned City</th></tr></thead><tbody>'+planRows+'</tbody></table></div></div>' +
+      '<div><h3>Actual Visits ('+visits.length+')</h3><div class="table-scroll" style="max-height:260px"><table><thead><tr><th>Date</th><th>Type</th><th>City</th><th>Partner/Detail</th><th>Follow-up</th></tr></thead><tbody>'+visitRows+'</tbody></table></div></div>' +
+    '</div>';
+}
+function closeDrilldown(){ document.getElementById('drilldownOverlay').classList.add('hidden'); }
+
+document.getElementById('loginId').addEventListener('keypress', e => { if(e.key==='Enter') doLogin(); });
+</script>
+</body>
+</html>
