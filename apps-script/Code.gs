@@ -528,6 +528,31 @@ function doPost(e) {
       return json_({ status: 'success', preview: (payload.count || 0) + ' leader(s) in tracker image' });
     }
 
+    // V2 dashboard: validate an Employee ID against the live roster (used by
+    // the new login screen). Returns the employee record + today's planned
+    // city (if any) on success.
+    if (data.action === 'v2Login') {
+      const employee = v2FindEmployee_(data.employeeCode);
+      if (!employee) return json_(error_v2_('EMPLOYEE_NOT_FOUND', 'Employee ID not found in the live roster.'));
+      const travel = getTravelPlanData_();
+      const tz = SpreadsheetApp.openById(TRAVEL_SHEET_ID).getSpreadsheetTimeZone();
+      const todayKey = Utilities.formatDate(new Date(), tz, 'd-MMM');
+      const todaysCity = (travel.plans[employee.id] || {})[todayKey] || '';
+      return json_({ status: 'success', employee: employee, todaysCity: todaysCity, plans: travel.plans[employee.id] || {} });
+    }
+
+    // V2 dashboard: submit a visit into the "Responses" tab (FORM_RESPONSES_SHEET_ID).
+    if (data.action === 'v2SubmitVisit') {
+      return json_(v2SubmitVisit_(data.payload));
+    }
+
+    // Diagnostic (same purpose as inspectColumns above, but for an arbitrary
+    // 0-based column index) — used to ground V2 form dropdown options in
+    // real sheet data instead of guessed option lists.
+    if (data.action === 'v2TallyColumn') {
+      return json_({ status: 'success', values: tallyColumn_(Number(data.colIndex)) });
+    }
+
     const type = data.visit_type;
     if (!TABS[type]) return json_({ status: 'error', msg: 'invalid visit_type' });
     const sh = getSheet_(type);
@@ -783,6 +808,193 @@ function inspectResponseColumns_() {
     supportRequired: tallyColumn_(RESP_COL_SUPPORT_REQUIRED_),
     actionOwner: tallyColumn_(RESP_COL_ACTION_OWNER_)
   };
+}
+
+// —————————————————————————————————————————————
+// V2 DASHBOARD — login + visit submission into the "Responses" tab
+// (FORM_RESPONSES_SHEET_ID). This is the write-path counterpart to the
+// read-only RESP_COL_*/getPartnerIntelData_ analytics above: same sheet,
+// same 38-column layout (ported from the standalone "V1 M&H Visit Tracker
+// backend" script, adapted to open the sheet by ID instead of relying on
+// container-binding, plus server-side employee validation that the
+// original script didn't have).
+// —————————————————————————————————————————————
+const V2_RESPONSES_TAB_ = 'Responses';
+const V2_HEADERS_ = [
+  'Submission ID', 'Timestamp', 'Employee Name', 'Employee Code', 'Designation',
+  'Reporting Zone', 'Base Location', 'Visit Date', 'Visit Type', 'Visit City',
+  'Latitude', 'Longitude', 'GPS Accuracy', 'Partner Name', 'Partner Type', 'Partner GID',
+  'Partner Category', 'Partner Status', 'Active Issues', 'Inactive Issues',
+  'Activation Possibility', 'Business Opportunity', 'Conversion Probability',
+  'Meeting Type', 'Team Member', 'Health Assessment', 'Challenges', 'Insurer Name',
+  'Contact Person', 'Discussion Topics', 'Outcome', 'Support Required', 'Action Plan',
+  'Action Owner', 'Follow-up Required', 'Follow-up Date', 'Notes/Comments', 'Photo URLs'
+];
+
+function v2ResponsesSheet_() {
+  const ss = SpreadsheetApp.openById(FORM_RESPONSES_SHEET_ID);
+  let sh = ss.getSheetByName(V2_RESPONSES_TAB_) || ss.getSheets()[0];
+  if (sh.getLastRow() === 0) {
+    sh.appendRow(V2_HEADERS_);
+    sh.getRange(1, 1, 1, V2_HEADERS_.length).setFontWeight('bold');
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+
+function v2Sanitize_(value) {
+  if (value === null || value === undefined) return '';
+  let s = String(value);
+  if (/^[=+\-@]/.test(s)) s = "'" + s; // neutralize formula-injection-looking values
+  return s;
+}
+
+function v2JoinMulti_(arr) {
+  if (!arr || !arr.length) return '';
+  return arr.map(x => String(x)).join('|');
+}
+
+function v2GenerateSubmissionId_(visitDateIso) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    const d = visitDateIso ? new Date(visitDateIso) : new Date();
+    const stamp = Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyyMMdd');
+    const props = PropertiesService.getScriptProperties();
+    const key = 'V2_SEQ_' + stamp;
+    const next = parseInt(props.getProperty(key) || '0', 10) + 1;
+    props.setProperty(key, String(next));
+    const seq = ('0000' + next).slice(-4);
+    return 'MH-' + stamp + '-' + seq;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Looks up an Employee ID against the live roster (same M&H Travel Plan
+ * source used everywhere else in this file) — this is the validation the
+ * original standalone script never had. Returns null if not found, so
+ * callers can reject the submission instead of trusting a client-supplied
+ * name/role/zone.
+ */
+function v2FindEmployee_(employeeCode) {
+  const code = String(employeeCode || '').trim();
+  if (!code) return null;
+  const travel = getTravelPlanData_();
+  return travel.roster.find(l => String(l.id).trim() === code) || null;
+}
+
+function v2ValidatePayload_(p) {
+  if (!p || !p.common) return error_v2_('INVALID_PAYLOAD', 'Missing visit details.');
+  const c = p.common;
+  if (!p.gps || typeof p.gps.latitude !== 'number' || typeof p.gps.longitude !== 'number') {
+    return error_v2_('GPS_REQUIRED', 'GPS coordinates are mandatory.');
+  }
+  if (!c.employeeCode) return error_v2_('INVALID_PAYLOAD', 'Employee is required.');
+  if (!c.visitDate) return error_v2_('INVALID_PAYLOAD', 'Visit date is required.');
+  if (!c.visitCity) return error_v2_('INVALID_PAYLOAD', 'Visit city is required.');
+  if (!c.visitType) return error_v2_('INVALID_PAYLOAD', 'Visit type is required.');
+  if (c.visitType === 'Partner Meet' && (!p.partner || !p.partner.partnerName)) {
+    return error_v2_('INVALID_PAYLOAD', 'Partner name is required.');
+  }
+  if (c.visitType === 'Team Connect' && (!p.team || !p.team.meetingType)) {
+    return error_v2_('INVALID_PAYLOAD', 'Meeting type is required.');
+  }
+  if (c.visitType === 'Insurer Meet' && (!p.insurer || !p.insurer.insurerName)) {
+    return error_v2_('INVALID_PAYLOAD', 'Insurer name is required.');
+  }
+  return null;
+}
+
+function error_v2_(code, message) {
+  return { status: 'error', errorCode: code, message: message };
+}
+
+function v2AppendVisit_(payload) {
+  const sh = v2ResponsesSheet_();
+  const submissionId = v2GenerateSubmissionId_(payload.common.visitDate);
+  const now = new Date();
+  const c = payload.common;
+  const g = payload.gps;
+  const p = payload.partner || {};
+  const t = payload.team || {};
+  const ins = payload.insurer || {};
+  const photoValues = payload.photoUrls || [];
+
+  const row = [
+    submissionId,
+    now,
+    v2Sanitize_(c.employeeName),
+    v2Sanitize_(c.employeeCode),
+    v2Sanitize_(c.designation),
+    v2Sanitize_(c.reportingZone),
+    v2Sanitize_(c.baseLocation),
+    v2Sanitize_(c.visitDate),
+    v2Sanitize_(c.visitType),
+    v2Sanitize_(c.visitCity),
+    g.latitude,
+    g.longitude,
+    g.accuracy,
+    v2Sanitize_(p.partnerName),
+    v2Sanitize_(p.partnerType),
+    v2Sanitize_(p.partnerGid),
+    v2Sanitize_(p.partnerCategory),
+    v2Sanitize_(p.partnerStatus),
+    v2JoinMulti_(p.activeIssues || []),
+    v2JoinMulti_(p.inactiveIssues || []),
+    v2Sanitize_(p.activationPossibility || ''),
+    v2Sanitize_(p.businessOpportunity),
+    v2Sanitize_(p.conversionProbability),
+    v2Sanitize_(t.meetingType),
+    v2Sanitize_(t.teamMemberName),
+    v2Sanitize_(t.healthAssessment),
+    v2JoinMulti_(t.challenges || []),
+    v2Sanitize_(ins.insurerName),
+    v2Sanitize_(ins.contactPerson),
+    v2JoinMulti_(ins.discussionTopics || []),
+    v2Sanitize_(ins.outcome),
+    v2JoinMulti_(p.supportRequired || t.supportRequired || ins.supportRequired || []),
+    v2Sanitize_(t.actionPlan || ins.actionPlan || ''),
+    v2Sanitize_(p.actionOwner || t.actionOwner || ins.actionOwner || ''),
+    (p.followUpRequired || t.followUpRequired || ins.followUpRequired || false) ? 'Yes' : 'No',
+    v2Sanitize_(p.followUpDate || t.followUpDate || ins.followUpDate || ''),
+    v2Sanitize_(p.additionalNotes || t.additionalComments || ins.comments || ''),
+    photoValues.map(v => String(v)).join('|')
+  ];
+
+  sh.appendRow(row);
+  return { status: 'success', data: { submissionId: submissionId, timestamp: now.toISOString() }, message: 'Visit recorded.' };
+}
+
+/**
+ * Full submit flow: validate the employee against the live roster (server
+ * side — never trust a client-supplied name/role/zone), overwrite the
+ * common block with the roster's own values, validate the rest of the
+ * payload, then append. `employeeName`/`designation`/`reportingZone`/
+ * `baseLocation` in the client's payload are ignored on purpose.
+ */
+function v2SubmitVisit_(payload) {
+  if (!payload || !payload.common) return error_v2_('INVALID_PAYLOAD', 'Missing visit details.');
+  const employee = v2FindEmployee_(payload.common.employeeCode);
+  if (!employee) return error_v2_('EMPLOYEE_NOT_FOUND', 'Employee ID not found in the live roster.');
+
+  payload.common = Object.assign({}, payload.common, {
+    employeeCode: employee.id,
+    employeeName: employee.name,
+    designation: employee.role,
+    reportingZone: employee.zone,
+    baseLocation: employee.base
+  });
+
+  const invalid = v2ValidatePayload_(payload);
+  if (invalid) return invalid;
+
+  try {
+    return v2AppendVisit_(payload);
+  } catch (err) {
+    return error_v2_('GOOGLE_SHEET_FAILED', 'Could not write to sheet: ' + err);
+  }
 }
 
 // —————————————————————————————————————————————
