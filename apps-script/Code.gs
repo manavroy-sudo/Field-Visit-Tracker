@@ -512,8 +512,23 @@ function doPost(e) {
     if (data.action === 'setupTriggers') {
       setupDailyTravelTrigger();
       setupDailyFormFillTrigger();
-      setupDailyOpsTrackerTrigger();
-      return json_({ status: 'success', msg: 'Daily triggers installed: travel summary ~8am, form-fill summary ~8pm, Daily Ops Tracker ~8pm.' });
+      // Note: the Daily Ops Tracker already sends at ~8pm via the
+      // sendDailyFormFillSummary trigger above — its body was repurposed to
+      // call buildDailyOpsTrackerCard_() instead of the old form-fill-count
+      // card, so no separate trigger is needed for it.
+      return json_({ status: 'success', msg: 'Daily triggers installed: travel summary ~8am, Daily Ops Tracker (via form-fill trigger) ~8pm.' });
+    }
+
+    // One-time cleanup: removes the incorrectly-added trigger pointing at a
+    // non-existent 'sendDailyOpsTracker' function (the real 8pm report is
+    // sendDailyFormFillSummary, whose body already calls
+    // buildDailyOpsTrackerCard_ — no separate trigger was ever needed).
+    if (data.action === 'cleanupStrayTrigger') {
+      let removed = 0;
+      ScriptApp.getProjectTriggers().forEach(t => {
+        if (t.getHandlerFunction() === 'sendDailyOpsTracker') { ScriptApp.deleteTrigger(t); removed++; }
+      });
+      return json_({ status: 'success', removed: removed });
     }
 
     // One-time (safe to re-run) correction for known Employee Name typos in
@@ -2213,24 +2228,6 @@ function setupDailyFormFillTrigger() {
     .everyDays(1)
     .create();
   Logger.log('Daily trigger installed for sendDailyFormFillSummary (~8pm, project time zone).');
-}
-
-/**
- * The Daily Ops Tracker (plan-vs-actual per leader, written to the
- * "Dashboard" tab + posted to Chat) was previously manual-trigger-only, so
- * it silently went stale between runs — this installs the same daily 8pm
- * schedule as the form-fill summary, so it's always current going forward.
- */
-function setupDailyOpsTrackerTrigger() {
-  ScriptApp.getProjectTriggers().forEach(t => {
-    if (t.getHandlerFunction() === 'sendDailyOpsTracker') ScriptApp.deleteTrigger(t);
-  });
-  ScriptApp.newTrigger('sendDailyOpsTracker')
-    .timeBased()
-    .atHour(20)
-    .everyDays(1)
-    .create();
-  Logger.log('Daily trigger installed for sendDailyOpsTracker (~8pm, project time zone).');
 }
 
 /**
