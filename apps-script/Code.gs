@@ -157,8 +157,22 @@ function normalizeCity_(name) {
   return key.replace(/\b\w/g, c => c.toUpperCase());
 }
 
+// Known misspellings seen in the Responses sheet's Employee Name column
+// (e.g. typed by hand in the legacy pre-V2 form, which never validated the
+// name against the roster) that would otherwise silently break every
+// name-matched report (Daily Ops Tracker, Central Dashboard, Partner
+// Intelligence, form-fill counts) for that leader — their real submissions
+// exist in the sheet, they just weren't joining to the roster. Keys are
+// already lowercased/period-stripped, matching normalizeName_'s own output.
+// Extend this map (not the underlying sheet data) if a new spelling variant
+// shows up in future responses.
+const EMPLOYEE_NAME_ALIASES_ = {
+  'virender ghuge': 'virendra ghuge'
+};
+
 function normalizeName_(s) {
-  return String(s || '').toLowerCase().replace(/[. ]/g, ' ').replace(/\s+/g, ' ').trim();
+  const key = String(s || '').toLowerCase().replace(/[.\u00A0 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  return EMPLOYEE_NAME_ALIASES_[key] || key;
 }
 
 /**
@@ -498,7 +512,15 @@ function doPost(e) {
     if (data.action === 'setupTriggers') {
       setupDailyTravelTrigger();
       setupDailyFormFillTrigger();
-      return json_({ status: 'success', msg: 'Daily triggers installed: travel summary ~8am, form-fill summary ~8pm.' });
+      setupDailyOpsTrackerTrigger();
+      return json_({ status: 'success', msg: 'Daily triggers installed: travel summary ~8am, form-fill summary ~8pm, Daily Ops Tracker ~8pm.' });
+    }
+
+    // One-time (safe to re-run) correction for known Employee Name typos in
+    // the Responses sheet (see EMPLOYEE_NAME_ALIASES_) — cleans the raw
+    // sheet data itself, not just the report-side matching.
+    if (data.action === 'fixEmployeeNameTypos') {
+      return json_({ status: 'success', data: fixEmployeeNameTypos_() });
     }
 
     // Diagnostic: returns the real distinct values (+counts) for the
@@ -2191,4 +2213,59 @@ function setupDailyFormFillTrigger() {
     .everyDays(1)
     .create();
   Logger.log('Daily trigger installed for sendDailyFormFillSummary (~8pm, project time zone).');
+}
+
+/**
+ * The Daily Ops Tracker (plan-vs-actual per leader, written to the
+ * "Dashboard" tab + posted to Chat) was previously manual-trigger-only, so
+ * it silently went stale between runs — this installs the same daily 8pm
+ * schedule as the form-fill summary, so it's always current going forward.
+ */
+function setupDailyOpsTrackerTrigger() {
+  ScriptApp.getProjectTriggers().forEach(t => {
+    if (t.getHandlerFunction() === 'sendDailyOpsTracker') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('sendDailyOpsTracker')
+    .timeBased()
+    .atHour(20)
+    .everyDays(1)
+    .create();
+  Logger.log('Daily trigger installed for sendDailyOpsTracker (~8pm, project time zone).');
+}
+
+/**
+ * One-time correction for any Employee Name cell in the Responses sheet
+ * that matches a known typo in EMPLOYEE_NAME_ALIASES_ (e.g. "Virender
+ * Ghuge") — rewrites it to the roster's canonical spelling, so the raw
+ * sheet data itself is clean, not just the aggregation logic (which already
+ * tolerates the alias via normalizeName_). Safe to re-run any time; only
+ * touches cells that actually match a known alias.
+ */
+function fixEmployeeNameTypos_() {
+  const travel = getTravelPlanData_();
+  const canonicalByKey = {};
+  travel.roster.forEach(l => { canonicalByKey[normalizeName_(l.name)] = l.name; });
+
+  const ss = SpreadsheetApp.openById(FORM_RESPONSES_SHEET_ID);
+  const sh = ss.getSheetByName(V2_RESPONSES_TAB_) || ss.getSheets()[0];
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return { fixed: 0 };
+
+  const n = lastRow - 1;
+  const range = sh.getRange(2, RESP_COL_NAME_ + 1, n, 1);
+  const values = range.getValues();
+  let fixed = 0;
+  values.forEach((row, i) => {
+    const raw = String(row[0] || '').trim();
+    const rawKey = raw.toLowerCase().replace(/[.  ]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (EMPLOYEE_NAME_ALIASES_.hasOwnProperty(rawKey)) {
+      const canonical = canonicalByKey[EMPLOYEE_NAME_ALIASES_[rawKey]];
+      if (canonical && canonical !== raw) {
+        values[i][0] = canonical;
+        fixed++;
+      }
+    }
+  });
+  if (fixed) range.setValues(values);
+  return { fixed: fixed };
 }
