@@ -44,7 +44,7 @@ const LOGIN_HEADERS = ['timestamp', 'emp_id', 'emp_name', 'role', 'zone', 'regio
 // Live roster + travel plan source — a separate sheet the leaders themselves edit.
 // Must be shared (at least Viewer) with whichever Google account this script is deployed as.
 const TRAVEL_SHEET_ID = '1wtvnrhCemuwEqHxO_dxhF9NEJ92M3BMV1Gy0zrrCDDg';
-const TRAVEL_TAB_NAME = "Aug'26";
+const TRAVEL_TAB_NAME = "Sept'26";
 
 // Google Chat space webhooks. CHAT_WEBHOOK_URL is the main/production target
 // (the daily 10am trigger posts here); TESTING_WEBHOOK_URL is used only when
@@ -186,9 +186,12 @@ function findTravelSheet_(ss) {
   if (sh) return sh;
   // Tolerate apostrophe-character differences (straight vs curly quote) between
   // what's typed here and what's actually in the live sheet's tab name.
+  // Built dynamically from TRAVEL_TAB_NAME (not hardcoded to one month) so
+  // this keeps working every month without needing another code edit.
+  const pattern = new RegExp('^' + TRAVEL_TAB_NAME.replace(/[^A-Za-z0-9]/g, '').toLowerCase() + '$', 'i');
   const all = ss.getSheets();
   for (let i = 0; i < all.length; i++) {
-    if (/^aug.?26$/i.test(all[i].getName().replace(/\s+/g, ''))) return all[i];
+    if (pattern.test(all[i].getName().replace(/[^A-Za-z0-9]/g, '').toLowerCase())) return all[i];
   }
   return null;
 }
@@ -529,6 +532,19 @@ function doPost(e) {
         if (t.getHandlerFunction() === 'sendDailyOpsTracker') { ScriptApp.deleteTrigger(t); removed++; }
       });
       return json_({ status: 'success', removed: removed });
+    }
+
+    // Temporary diagnostic: dumps the raw header rows of whichever tab
+    // findTravelSheet_ resolves to (TRAVEL_TAB_NAME or its fallback match),
+    // so a month-changeover can be verified against real cell text instead
+    // of guessing from a screenshot (narrow columns can visually truncate
+    // header text like "Employee ID" down to "Employee").
+    if (data.action === 'inspectTravelTab') {
+      const ss = SpreadsheetApp.openById(TRAVEL_SHEET_ID);
+      const sh = findTravelSheet_(ss);
+      if (!sh) return json_({ status: 'error', msg: 'No tab found matching TRAVEL_TAB_NAME (' + TRAVEL_TAB_NAME + ') or its fallback pattern.', sheetNames: ss.getSheets().map(s => s.getName()) });
+      const rows = sh.getRange(1, 1, 10, Math.min(sh.getLastColumn(), 12)).getValues();
+      return json_({ status: 'success', resolvedTabName: sh.getName(), rows: rows });
     }
 
     // One-time (safe to re-run) correction for known Employee Name typos in
