@@ -1365,6 +1365,23 @@ function buildPartnerIntelSummaryCard_() {
  * distinct visit cities (= actual cities covered) — all "actual" figures
  * for the Daily Ops Tracker come from here.
  */
+// Normalizes any Visit Date cell (Date object or string) to 'yyyy-MM-dd'.
+// Shared by every function below that needs to filter/group by the actual
+// calendar date, rather than the submission timestamp.
+function visitDateKey_(vd, tz) {
+  return vd instanceof Date && !isNaN(vd.getTime()) ? Utilities.formatDate(vd, tz, 'yyyy-MM-dd') : String(vd || '').trim();
+}
+
+// 'yyyy-MM' for the current real-world month — used to scope "actual
+// visits" reporting to the current month only, so it lines up with
+// whichever month's tab getTravelPlanData_ is reading as "planned" (a
+// lifetime cumulative actual count would make Plan-vs-Actual completion %
+// meaningless the moment a new month's plan starts). Recomputes every call,
+// so it rolls over automatically with no code change needed each month.
+function currentMonthKey_() {
+  return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM');
+}
+
 function getActualTravelStats_() {
   const ss = SpreadsheetApp.openById(FORM_RESPONSES_SHEET_ID);
   const sh = ss.getSheetByName('Responses') || ss.getSheets()[0];
@@ -1378,19 +1395,20 @@ function getActualTravelStats_() {
   const visitDates = col(RESP_COL_VISIT_DATE_);
   const visitCities = col(RESP_COL_VISIT_CITY_);
   const tz = Session.getScriptTimeZone();
+  const monthKey = currentMonthKey_();
 
   for (let i = 0; i < n; i++) {
     const raw = String(names[i][0] || '').trim();
     if (!raw) continue;
+    const dateKey = visitDateKey_(visitDates[i][0], tz);
+    if (dateKey.indexOf(monthKey) !== 0) continue; // scope to the current month only
+
     const key = normalizeName_(raw);
     if (!stats[key]) stats[key] = { name: raw, totalForms: 0, partnerMeets: 0, dateSet: new Set(), citySet: new Set() };
     const rec = stats[key];
     rec.totalForms++;
     if (String(visitTypes[i][0] || '').trim() === 'Partner Meet') rec.partnerMeets++;
-
-    const vd = visitDates[i][0];
-    const dateKey = vd instanceof Date && !isNaN(vd.getTime()) ? Utilities.formatDate(vd, tz, 'yyyy-MM-dd') : String(vd || '').trim();
-    if (dateKey) rec.dateSet.add(dateKey);
+    rec.dateSet.add(dateKey);
 
     const vc = String(visitCities[i][0] || '').trim();
     if (vc) rec.citySet.add(normalizeCity_(vc));
@@ -1760,14 +1778,27 @@ function buildDailyOpsTrackerImage_() {
  * follow-up, and the most recent submission timestamp — so the daily report
  * can show more than a bare count. Row 1 is assumed to be a header row.
  */
+/**
+ * Scoped to the current calendar month (by Visit Date, not submission
+ * timestamp) — "how many forms has this leader filled" should mean this
+ * month's forms, matching whichever month's tab is currently the "planned"
+ * side of the comparison. pendingFollowUps/lastVisitAt are scoped the same
+ * way, since a follow-up flagged in a prior month isn't this month's open
+ * item to chase. Rolls over automatically every month, no code change needed.
+ */
 function getFormFillCounts_() {
   const ss = SpreadsheetApp.openById(FORM_RESPONSES_SHEET_ID);
   const sh = ss.getSheetByName('Responses') || ss.getSheets()[0];
   const values = sh.getDataRange().getValues();
+  const tz = Session.getScriptTimeZone();
+  const monthKey = currentMonthKey_();
   const counts = {};
   for (let r = 1; r < values.length; r++) {
     const raw = String(values[r][RESP_COL_NAME_] || '').trim();
     if (!raw) continue;
+    const dateKey = visitDateKey_(values[r][RESP_COL_VISIT_DATE_], tz);
+    if (dateKey.indexOf(monthKey) !== 0) continue; // scope to the current month only
+
     const key = normalizeName_(raw);
     if (!counts[key]) {
       counts[key] = {
