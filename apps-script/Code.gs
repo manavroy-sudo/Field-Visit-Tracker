@@ -547,6 +547,24 @@ function doPost(e) {
       return json_({ status: 'success', resolvedTabName: sh.getName(), rows: rows });
     }
 
+    // Manual cleanup: deletes one row from the Responses tab by its exact
+    // Submission ID — for removing confirmed-duplicate rows (e.g. from the
+    // retry-after-false-error case v2FindRecentDuplicate_ now prevents
+    // going forward). Only deletes an exact ID match; does nothing if not found.
+    if (data.action === 'deleteResponseRow') {
+      const sh = v2ResponsesSheet_();
+      const lastRow = sh.getLastRow();
+      if (lastRow < 2) return json_({ status: 'success', deleted: false });
+      const ids = sh.getRange(2, 1, lastRow - 1, 1).getValues();
+      for (let i = 0; i < ids.length; i++) {
+        if (String(ids[i][0]).trim() === String(data.submissionId).trim()) {
+          sh.deleteRow(i + 2);
+          return json_({ status: 'success', deleted: true, row: i + 2 });
+        }
+      }
+      return json_({ status: 'success', deleted: false });
+    }
+
     // One-time (safe to re-run) correction for known Employee Name typos in
     // the Responses sheet (see EMPLOYEE_NAME_ALIASES_) — cleans the raw
     // sheet data itself, not just the report-side matching.
@@ -1079,6 +1097,49 @@ function v2AppendVisit_(payload) {
  * payload, then append. `employeeName`/`designation`/`reportingZone`/
  * `baseLocation` in the client's payload are ignored on purpose.
  */
+/**
+ * Guards against the exact failure mode that hit Puneet on 11-Sep: the
+ * Apps Script write succeeds but the HTTP response occasionally fails to
+ * reach the browser, so the app shows "could not reach the server" even
+ * though the visit WAS saved — and the (reasonable) retry then creates a
+ * real duplicate row. Scans only the last ~20 rows (a retry duplicate is
+ * always near the end) for a same employee + visit type + visit date +
+ * identifying name (partner/team member/insurer) within the last 3
+ * minutes. Returns the existing Submission ID if found, else null.
+ */
+function v2FindRecentDuplicate_(payload) {
+  const c = payload.common;
+  const identifying = (payload.partner && payload.partner.partnerName) ||
+                       (payload.team && payload.team.teamMemberName) ||
+                       (payload.insurer && payload.insurer.insurerName) || '';
+  if (!identifying) return null;
+
+  const sh = v2ResponsesSheet_();
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return null;
+  const scanRows = Math.min(20, lastRow - 1);
+  const startRow = lastRow - scanRows + 1;
+  const values = sh.getRange(startRow, 1, scanRows, V2_HEADERS_.length).getValues();
+  const tz = Session.getScriptTimeZone();
+  const now = new Date();
+
+  for (let i = values.length - 1; i >= 0; i--) {
+    const row = values[i];
+    const ts = row[RESP_COL_TIMESTAMP_];
+    const tsDate = ts instanceof Date ? ts : new Date(ts);
+    if (isNaN(tsDate.getTime()) || (now.getTime() - tsDate.getTime()) > 3 * 60 * 1000) continue;
+    if (String(row[3] || '').trim() !== String(c.employeeCode).trim()) continue; // D: Employee Code
+    if (String(row[RESP_COL_VISIT_TYPE_] || '').trim() !== c.visitType) continue;
+    if (visitDateKey_(row[RESP_COL_VISIT_DATE_], tz) !== c.visitDate) continue;
+
+    const rowIdentifying = row[13] || row[24] || row[27] || ''; // Partner Name / Team Member / Insurer Name
+    if (String(rowIdentifying).trim().toLowerCase() !== identifying.trim().toLowerCase()) continue;
+
+    return row[0]; // existing Submission ID
+  }
+  return null;
+}
+
 function v2SubmitVisit_(payload) {
   if (!payload || !payload.common) return error_v2_('INVALID_PAYLOAD', 'Missing visit details.');
   const employee = v2FindEmployee_(payload.common.employeeCode);
@@ -1096,6 +1157,10 @@ function v2SubmitVisit_(payload) {
   if (invalid) return invalid;
 
   try {
+    const dup = v2FindRecentDuplicate_(payload);
+    if (dup) {
+      return { status: 'success', data: { submissionId: dup, timestamp: new Date().toISOString() }, message: 'Visit already recorded (duplicate submission detected — no new row created).' };
+    }
     return v2AppendVisit_(payload);
   } catch (err) {
     return error_v2_('GOOGLE_SHEET_FAILED', 'Could not write to sheet: ' + err);
