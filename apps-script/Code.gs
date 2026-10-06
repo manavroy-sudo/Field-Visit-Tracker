@@ -210,6 +210,17 @@ function dateCellToKey_(v, tz) {
  * it locates headers by text match rather than fixed column letters, and skips
  * (rather than guesses on) any row it can't confidently map to an Employee ID.
  */
+// Case-insensitive "starts with" header match — tolerates label wording
+// drifting month to month (e.g. "Plan" -> "Planned Days") without an exact
+// match silently returning -1 and zeroing out downstream data.
+function findColByPrefix_(row, prefix) {
+  const p = prefix.toLowerCase();
+  for (let i = 0; i < row.length; i++) {
+    if (String(row[i] || '').trim().toLowerCase().indexOf(p) === 0) return i;
+  }
+  return -1;
+}
+
 function getTravelPlanData_() {
   const ss = SpreadsheetApp.openById(TRAVEL_SHEET_ID);
   const tz = ss.getSpreadsheetTimeZone();
@@ -230,7 +241,8 @@ function getTravelPlanData_() {
   const roleCol = header.indexOf('Role');
   const zoneCol = header.indexOf('Zone');
   const regionCol = header.indexOf('Region');
-  const planCountCol = header.indexOf('Plan');
+  // 'Plan' tolerant match: covers "Plan", "Planned Days", "Plan Days", etc.
+  const planCountCol = findColByPrefix_(header, 'plan');
 
   // The "Plan" / "Actual" section markers (marking where each date-column
   // block starts) sit a row or two above the header, depending on how many
@@ -238,8 +250,8 @@ function getTravelPlanData_() {
   let planBlockStart = -1, actualBlockStart = -1;
   for (let back = 1; back <= 3 && (planBlockStart === -1 || actualBlockStart === -1); back++) {
     const row = values[headerRow - back] || [];
-    if (planBlockStart === -1) planBlockStart = row.indexOf('Plan');
-    if (actualBlockStart === -1) actualBlockStart = row.indexOf('Actual');
+    if (planBlockStart === -1) planBlockStart = findColByPrefix_(row, 'plan');
+    if (actualBlockStart === -1) actualBlockStart = findColByPrefix_(row, 'actual');
   }
   if (planBlockStart === -1) planBlockStart = planCountCol;
   if (actualBlockStart === -1) actualBlockStart = header.length;
@@ -543,8 +555,11 @@ function doPost(e) {
       const ss = SpreadsheetApp.openById(TRAVEL_SHEET_ID);
       const sh = findTravelSheet_(ss);
       if (!sh) return json_({ status: 'error', msg: 'No tab found matching TRAVEL_TAB_NAME (' + TRAVEL_TAB_NAME + ') or its fallback pattern.', sheetNames: ss.getSheets().map(s => s.getName()) });
-      const rows = sh.getRange(1, 1, 10, Math.min(sh.getLastColumn(), 12)).getValues();
-      return json_({ status: 'success', resolvedTabName: sh.getName(), rows: rows });
+      const numRows = Number(data.numRows) || 10;
+      const startCol = Number(data.startCol) || 1;
+      const numCols = Math.min(sh.getLastColumn() - startCol + 1, Number(data.numCols) || 12);
+      const rows = sh.getRange(1, startCol, numRows, numCols).getValues();
+      return json_({ status: 'success', resolvedTabName: sh.getName(), lastColumn: sh.getLastColumn(), rows: rows });
     }
 
     // Manual cleanup: deletes one row from the Responses tab by its exact
