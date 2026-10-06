@@ -44,7 +44,7 @@ const LOGIN_HEADERS = ['timestamp', 'emp_id', 'emp_name', 'role', 'zone', 'regio
 // Live roster + travel plan source — a separate sheet the leaders themselves edit.
 // Must be shared (at least Viewer) with whichever Google account this script is deployed as.
 const TRAVEL_SHEET_ID = '1wtvnrhCemuwEqHxO_dxhF9NEJ92M3BMV1Gy0zrrCDDg';
-const TRAVEL_TAB_NAME = "Sept'26";
+const TRAVEL_TAB_NAME = "Oct'26";
 
 // Google Chat space webhooks. CHAT_WEBHOOK_URL is the main/production target
 // (the daily 10am trigger posts here); TESTING_WEBHOOK_URL is used only when
